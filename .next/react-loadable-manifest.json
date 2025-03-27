@@ -5,6 +5,24 @@
       "static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_js.js"
     ]
   },
+  "pages\\index.js -> ../components/Analysis/SpatialAnalysis": {
+    "id": "pages\\index.js -> ../components/Analysis/SpatialAnalysis",
+    "files": [
+      "static/chunks/components_Analysis_SpatialAnalysis_jsx.js"
+    ]
+  },
+  "pages\\index.js -> ../components/DataHandling/DataImport": {
+    "id": "pages\\index.js -> ../components/DataHandling/DataImport",
+    "files": [
+      "static/chunks/components_DataHandling_DataImport_jsx.js"
+    ]
+  },
+  "pages\\index.js -> ../components/DataHandling/ExportDialog": {
+    "id": "pages\\index.js -> ../components/DataHandling/ExportDialog",
+    "files": [
+      "static/chunks/components_DataHandling_ExportDialog_jsx.js"
+    ]
+  },
   "pages\\index.js -> ../components/Map/DeckGLMap": {
     "id": "pages\\index.js -> ../components/Map/DeckGLMap",
     "files": [
