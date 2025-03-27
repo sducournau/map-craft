@@ -3,6 +3,7 @@ import { DeckGL } from '@deck.gl/react';
 import { Map } from 'react-map-gl';
 import { Box, Paper, Typography, Fade } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import styles from '../../styles/DeckGLMap.module.css';
 
 // Tooltip component for hover information
 const CustomTooltip = ({ hoveredObject, x, y }) => {
@@ -75,7 +76,7 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
         setHoverInfo(null);
       }
     }
-  }), [layers, viewState, onViewStateChange, setHoverInfo]); // Added setHoverInfo dependency
+  }), [layers, viewState, onViewStateChange, setHoverInfo]);
 
   // Select appropriate map style based on theme
   const mapStyle = useMemo(() => {
@@ -86,6 +87,7 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
 
   return (
     <Box 
+      className={styles.mapWrapper}
       sx={{ 
         position: 'absolute', 
         width: '100%', 
@@ -95,12 +97,16 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
         },
       }}
     >
-      <DeckGL {...deckProps}>
+      <DeckGL 
+        {...deckProps}
+        style={{ position: 'absolute', width: '100%', height: '100%' }}
+      >
         <Map 
           mapStyle={mapStyle}
           preventStyleDiffing={true}
           reuseMaps
           attributionControl={false}
+          style={{ width: '100%', height: '100%' }}
         />
       </DeckGL>
       

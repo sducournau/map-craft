@@ -5,7 +5,7 @@ import {
   Toolbar, 
   Typography, 
   IconButton, 
-  Drawer, 
+  Drawer,
   Divider,
   useMediaQuery,
   Menu,
@@ -33,6 +33,9 @@ const drawerWidth = 300;
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
   ({ theme, open }) => ({
     flexGrow: 1,
+    height: '100%',
+    overflow: 'hidden',
+    position: 'relative',
     transition: theme.transitions.create(['margin', 'width'], {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.leavingScreen,
@@ -94,7 +97,13 @@ const MainLayout = ({ children, sidebarContent, title = 'MapCraft' }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      height: '100vh', 
+      width: '100vw',
+      overflow: 'hidden',
+      flexDirection: 'column'
+    }}>
       <AppBar 
         position="fixed" 
         sx={{ 
@@ -223,40 +232,32 @@ const MainLayout = ({ children, sidebarContent, title = 'MapCraft' }) => {
         </Toolbar>
       </AppBar>
       
-      <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
+      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', marginTop: '64px', overflow: 'hidden' }}>
+        <Drawer
+          sx={{
             width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-        }}
-        variant={isMobile ? "temporary" : "persistent"}
-        anchor="left"
-        open={open}
-        onClose={handleDrawerClose}
-      >
-        <DrawerHeader>
-          <Typography variant="h6" sx={{ fontWeight: 500, ml: 1 }}>
-            MapCraft
-          </Typography>
-          <IconButton onClick={handleDrawerClose}>
-            <ChevronLeftIcon />
-          </IconButton>
-        </DrawerHeader>
-        <Divider />
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: drawerWidth,
+              boxSizing: 'border-box',
+              height: 'calc(100% - 64px)',
+              top: '64px',
+            },
+          }}
+          variant={isMobile ? "temporary" : "persistent"}
+          anchor="left"
+          open={open}
+          onClose={handleDrawerClose}
+        >
+          <Box sx={{ overflow: 'auto', height: '100%' }}>
+            {sidebarContent}
+          </Box>
+        </Drawer>
         
-        {/* Sidebar Content */}
-        <Box sx={{ overflow: 'auto', height: '100%' }}>
-          {sidebarContent}
-        </Box>
-      </Drawer>
-      
-      <Main open={open}>
-        <DrawerHeader /> {/* This creates space for the AppBar */}
-        {children}
-      </Main>
+        <Main open={open} sx={{ height: '100%', position: 'relative' }}>
+          {children}
+        </Main>
+      </Box>
     </Box>
   );
 };

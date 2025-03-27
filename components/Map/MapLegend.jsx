@@ -15,7 +15,7 @@ import {
   useTheme
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import LegendIcon from '@mui/icons-material/Legend';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import LayersIcon from '@mui/icons-material/Layers';
@@ -324,7 +324,7 @@ const MapLegend = () => {
       <LegendContainer elevation={3}>
         <LegendHeader onClick={toggleCollapse}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <LegendIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+          <ListAltIcon sx={{ mr: 1, fontSize: '1.2rem' }} /> {/* Changed from LegendIcon */}
             <Typography variant="subtitle2">Légende</Typography>
           </Box>
           <IconButton

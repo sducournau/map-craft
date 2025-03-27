@@ -67,6 +67,7 @@ const NoLayersBox = styled(Box)(({ theme }) => ({
   minHeight: 200,
 }));
 
+// Fixed TabPanel to handle overflow properly
 const TabPanel = (props) => {
   const { children, value, index, ...other } = props;
 
@@ -77,10 +78,21 @@ const TabPanel = (props) => {
       id={`sidebar-tabpanel-${index}`}
       aria-labelledby={`sidebar-tab-${index}`}
       {...other}
-      style={{ height: '100%', overflow: 'auto' }}
+      style={{ 
+        height: '100%', 
+        display: value === index ? 'flex' : 'none',
+        flexDirection: 'column',
+        overflow: 'hidden' // Important: Don't let this element scroll
+      }}
     >
       {value === index && (
-        <Box sx={{ p: 2, height: '100%' }}>
+        <Box sx={{ 
+          p: 2, 
+          flexGrow: 1,
+          overflow: 'auto', // This is where scrolling happens
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
           {children}
         </Box>
       )}
@@ -293,8 +305,14 @@ const LayerSidebar = ({ onImportData, onShowAnalysis }) => {
   };
   
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100%',
+      overflow: 'hidden' // This is important - prevent the outer Box from scrolling
+    }}>
+      {/* Tabs header - fixed position */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
         <Tabs 
           value={activeTab} 
           onChange={handleTabChange} 
@@ -308,372 +326,383 @@ const LayerSidebar = ({ onImportData, onShowAnalysis }) => {
         </Tabs>
       </Box>
       
-      {/* Layers Tab */}
-      <TabPanel value={activeTab} index={0} sx={{ flexGrow: 1, overflow: 'auto' }}>
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <TextField
-            placeholder="Rechercher..."
-            size="small"
-            variant="outlined"
-            fullWidth
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Box sx={{ ml: 1, display: 'flex' }}>
-            <Tooltip title="Créer un groupe">
-              <IconButton onClick={() => setIsCreatingGroup(true)} size="small">
-                <CreateNewFolderIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Ajouter une couche">
-              <IconButton onClick={onImportData} size="small">
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-        
-        {/* Create new group dialog */}
-        {isCreatingGroup && (
-          <Paper 
-            elevation={2}
-            sx={{ 
-              p: 2, 
-              mb: 2,
-              borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`
-            }}
-          >
-            <Typography variant="subtitle2" gutterBottom>
-              Nouveau groupe de couches
-            </Typography>
+      {/* Tab panels container - takes all available height and enables proper scrolling */}
+      <Box sx={{ 
+        flexGrow: 1, 
+        overflow: 'hidden', 
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* Layers Tab */}
+        <TabPanel value={activeTab} index={0}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <TextField
-              autoFocus
-              fullWidth
+              placeholder="Rechercher..."
               size="small"
-              label="Nom du groupe"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              sx={{ mb: 2 }}
+              variant="outlined"
+              fullWidth
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
             />
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-              <Button 
-                size="small" 
-                onClick={() => setIsCreatingGroup(false)}
-              >
-                Annuler
-              </Button>
-              <Button 
-                variant="contained" 
-                size="small" 
-                onClick={handleCreateGroup}
-                disabled={!newGroupName.trim()}
-              >
-                Créer
-              </Button>
+            <Box sx={{ ml: 1, display: 'flex' }}>
+              <Tooltip title="Créer un groupe">
+                <IconButton onClick={() => setIsCreatingGroup(true)} size="small">
+                  <CreateNewFolderIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Ajouter une couche">
+                <IconButton onClick={onImportData} size="small">
+                  <AddIcon />
+                </IconButton>
+              </Tooltip>
             </Box>
-          </Paper>
-        )}
-        
-        {/* Layer Groups */}
-        {layerGroups.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            {layerGroups.map((group) => (
-              <Paper 
-                key={group.id} 
-                elevation={1} 
-                sx={{ mb: 1, overflow: 'hidden' }}
-              >
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    p: 1,
-                    bgcolor: 'background.lighter',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => toggleGroupExpansion(group.id)}
+          </Box>
+          
+          {/* Create new group dialog */}
+          {isCreatingGroup && (
+            <Paper 
+              elevation={2}
+              sx={{ 
+                p: 2, 
+                mb: 2,
+                borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`,
+                flexShrink: 0
+              }}
+            >
+              <Typography variant="subtitle2" gutterBottom>
+                Nouveau groupe de couches
+              </Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                size="small"
+                label="Nom du groupe"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                sx={{ mb: 2 }}
+              />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Button 
+                  size="small" 
+                  onClick={() => setIsCreatingGroup(false)}
                 >
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <FolderIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={group.name} 
-                    secondary={`${group.layers.length} couche${group.layers.length > 1 ? 's' : ''}`}
-                    primaryTypographyProps={{ variant: 'subtitle2' }}
-                    secondaryTypographyProps={{ variant: 'caption' }}
-                  />
-                  <IconButton 
-                    size="small" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleGroupExpansion(group.id);
-                    }}
+                  Annuler
+                </Button>
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  onClick={handleCreateGroup}
+                  disabled={!newGroupName.trim()}
+                >
+                  Créer
+                </Button>
+              </Box>
+            </Paper>
+          )}
+          
+          {/* Scrollable content area */}
+          <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+            {/* Layer Groups */}
+            {layerGroups.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                {layerGroups.map((group) => (
+                  <Paper 
+                    key={group.id} 
+                    elevation={1} 
+                    sx={{ mb: 1, overflow: 'hidden' }}
                   >
-                    {expandedGroups.includes(group.id) ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                  </IconButton>
-                </Box>
-                
-                {expandedGroups.includes(group.id) && (
-                  <Box sx={{ pl: 2 }}>
-                    {group.layers.map((layerId) => {
-                      const layer = layers.find(l => l.id === layerId);
-                      if (!layer) return null;
-                      
-                      return (
-                        <ListItem 
-                          key={layer.id}
-                          dense
-                          button
-                          selected={activeLayer === layer.id}
-                          onClick={() => setActiveLayer(layer.id)}
-                          sx={{ 
-                            borderLeft: '1px solid',
-                            borderColor: 'divider',
-                            ml: 2,
-                            pl: 2,
-                            opacity: lockedLayers.includes(layer.id) ? 0.7 : 1 
-                          }}
-                        >
-                          <ListItemIcon sx={{ minWidth: 36 }}>
-                            <Typography
-                              component="span"
-                              sx={{
-                                fontWeight: 'bold',
-                                color: 'primary.main',
-                                opacity: 0.8,
+                    <Box 
+                      sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        p: 1,
+                        bgcolor: 'background.lighter',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => toggleGroupExpansion(group.id)}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <FolderIcon color="primary" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={group.name} 
+                        secondary={`${group.layers.length} couche${group.layers.length > 1 ? 's' : ''}`}
+                        primaryTypographyProps={{ variant: 'subtitle2' }}
+                        secondaryTypographyProps={{ variant: 'caption' }}
+                      />
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleGroupExpansion(group.id);
+                        }}
+                      >
+                        {expandedGroups.includes(group.id) ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                      </IconButton>
+                    </Box>
+                    
+                    {expandedGroups.includes(group.id) && (
+                      <Box sx={{ pl: 2 }}>
+                        {group.layers.map((layerId) => {
+                          const layer = layers.find(l => l.id === layerId);
+                          if (!layer) return null;
+                          
+                          return (
+                            <ListItem 
+                              key={layer.id}
+                              dense
+                              button
+                              selected={activeLayer === layer.id}
+                              onClick={() => setActiveLayer(layer.id)}
+                              sx={{ 
+                                borderLeft: '1px solid',
+                                borderColor: 'divider',
+                                ml: 2,
+                                pl: 2,
+                                opacity: lockedLayers.includes(layer.id) ? 0.7 : 1 
                               }}
                             >
-                              {getLayerTypeIcon(layer.type)}
-                            </Typography>
-                          </ListItemIcon>
-                          
-                          <ListItemText
-                            primary={layer.title || layer.id}
-                            secondary={getLayerTypeName(layer.type)}
-                            primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                            secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
-                          />
-                          
-                          <ListItemSecondaryAction>
-                            <Tooltip title={visibleLayers.includes(layer.id) ? "Masquer" : "Afficher"}>
-                              <IconButton 
-                                edge="end" 
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleLayerVisibility(layer.id);
-                                }}
-                              >
-                                {visibleLayers.includes(layer.id) ? 
-                                  <VisibilityIcon fontSize="small" /> : 
-                                  <VisibilityOffIcon fontSize="small" />
-                                }
-                              </IconButton>
-                            </Tooltip>
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      );
-                    })}
-                  </Box>
-                )}
-              </Paper>
-            ))}
-          </Box>
-        )}
-        
-        {/* Layers List */}
-        {layers.length === 0 ? (
-          <NoLayersBox>
-            <LayersIcon sx={{ fontSize: 48, opacity: 0.3, mb: 2 }} />
-            <Typography variant="subtitle1" gutterBottom>
-              Aucune couche disponible
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 3 }}>
-              Importez des données pour commencer.
-            </Typography>
-            <Button 
-              variant="contained" 
-              startIcon={<AddIcon />}
-              onClick={onImportData}
-            >
-              Ajouter une couche
-            </Button>
-          </NoLayersBox>
-        ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="layer-list">
-              {(provided) => (
-                <Box
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  sx={{ mb: 2 }}
-                >
-                  {getSortedLayers().map((layer, index) => (
-                    <Draggable key={layer.id} draggableId={layer.id} index={index}>
-                      {(provided, snapshot) => (
-                        <LayerItem
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          elevation={snapshot.isDragging ? 4 : 1}
-                          sx={{
-                            ...(activeLayer === layer.id && {
-                              borderLeft: 4,
-                              borderColor: 'primary.main',
-                            }),
-                          }}
-                        >
-                          <ListItem
-                            button
-                            onClick={() => setActiveLayer(layer.id)}
-                            dense
-                          >
-                            <ListItemIcon sx={{ minWidth: 36 }}>
-                              <Typography
-                                component="span"
-                                sx={{
-                                  fontWeight: 'bold',
-                                  color: 'primary.main',
-                                  opacity: 0.8,
-                                }}
-                              >
-                                {getLayerTypeIcon(layer.type)}
-                              </Typography>
-                            </ListItemIcon>
-                            
-                            <ListItemText
-                              primary={layer.title || layer.id}
-                              secondary={
-                                <React.Fragment>
-                                  {getLayerTypeName(layer.type)}
-                                  {layer.data?.features?.length > 0 && 
-                                    ` (${layer.data.features.length} objets)`}
-                                </React.Fragment>
-                              }
-                              primaryTypographyProps={{ noWrap: true }}
-                              secondaryTypographyProps={{ 
-                                variant: 'caption',
-                                noWrap: true,
-                                sx: { opacity: 0.7 }
-                              }}
-                            />
-                            
-                            <ListItemSecondaryAction sx={{ display: 'flex' }}>
-                              <Tooltip title={visibleLayers.includes(layer.id) ? "Masquer" : "Afficher"}>
-                                <IconButton 
-                                  edge="end" 
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleLayerVisibility(layer.id);
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <Typography
+                                  component="span"
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    color: 'primary.main',
+                                    opacity: 0.8,
                                   }}
                                 >
-                                  {visibleLayers.includes(layer.id) ? 
-                                    <VisibilityIcon fontSize="small" /> : 
-                                    <VisibilityOffIcon fontSize="small" />
-                                  }
-                                </IconButton>
-                              </Tooltip>
+                                  {getLayerTypeIcon(layer.type)}
+                                </Typography>
+                              </ListItemIcon>
                               
-                              {lockedLayers.includes(layer.id) ? (
-                                <Tooltip title="Déverrouiller">
+                              <ListItemText
+                                primary={layer.title || layer.id}
+                                secondary={getLayerTypeName(layer.type)}
+                                primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                                secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                              />
+                              
+                              <ListItemSecondaryAction>
+                                <Tooltip title={visibleLayers.includes(layer.id) ? "Masquer" : "Afficher"}>
                                   <IconButton 
                                     edge="end" 
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      lockLayer(layer.id, false);
+                                      toggleLayerVisibility(layer.id);
                                     }}
                                   >
-                                    <LockIcon fontSize="small" />
+                                    {visibleLayers.includes(layer.id) ? 
+                                      <VisibilityIcon fontSize="small" /> : 
+                                      <VisibilityOffIcon fontSize="small" />
+                                    }
                                   </IconButton>
                                 </Tooltip>
-                              ) : (
-                                <Tooltip title="Plus d'options">
-                                  <IconButton 
-                                    edge="end" 
-                                    size="small"
-                                    onClick={(e) => handleLayerMenuOpen(e, layer.id)}
+                              </ListItemSecondaryAction>
+                            </ListItem>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Paper>
+                ))}
+              </Box>
+            )}
+            
+            {/* Layers List */}
+            {layers.length === 0 ? (
+              <NoLayersBox>
+                <LayersIcon sx={{ fontSize: 48, opacity: 0.3, mb: 2 }} />
+                <Typography variant="subtitle1" gutterBottom>
+                  Aucune couche disponible
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 3 }}>
+                  Importez des données pour commencer.
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={onImportData}
+                >
+                  Ajouter une couche
+                </Button>
+              </NoLayersBox>
+            ) : (
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="layer-list">
+                  {(provided) => (
+                    <Box
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                    >
+                      {getSortedLayers().map((layer, index) => (
+                        <Draggable key={layer.id} draggableId={layer.id} index={index}>
+                          {(provided, snapshot) => (
+                            <LayerItem
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              elevation={snapshot.isDragging ? 4 : 1}
+                              sx={{
+                                ...(activeLayer === layer.id && {
+                                  borderLeft: 4,
+                                  borderColor: 'primary.main',
+                                }),
+                              }}
+                            >
+                              <ListItem
+                                button
+                                onClick={() => setActiveLayer(layer.id)}
+                                dense
+                              >
+                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                  <Typography
+                                    component="span"
+                                    sx={{
+                                      fontWeight: 'bold',
+                                      color: 'primary.main',
+                                      opacity: 0.8,
+                                    }}
                                   >
-                                    <MoreVertIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                            </ListItemSecondaryAction>
-                          </ListItem>
-                        </LayerItem>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </Box>
-              )}
-            </Droppable>
-          </DragDropContext>
-        )}
+                                    {getLayerTypeIcon(layer.type)}
+                                  </Typography>
+                                </ListItemIcon>
+                                
+                                <ListItemText
+                                  primary={layer.title || layer.id}
+                                  secondary={
+                                    <React.Fragment>
+                                      {getLayerTypeName(layer.type)}
+                                      {layer.data?.features?.length > 0 && 
+                                        ` (${layer.data.features.length} objets)`}
+                                    </React.Fragment>
+                                  }
+                                  primaryTypographyProps={{ noWrap: true }}
+                                  secondaryTypographyProps={{ 
+                                    variant: 'caption',
+                                    noWrap: true,
+                                    sx: { opacity: 0.7 }
+                                  }}
+                                />
+                                
+                                <ListItemSecondaryAction sx={{ display: 'flex' }}>
+                                  <Tooltip title={visibleLayers.includes(layer.id) ? "Masquer" : "Afficher"}>
+                                    <IconButton 
+                                      edge="end" 
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleLayerVisibility(layer.id);
+                                      }}
+                                    >
+                                      {visibleLayers.includes(layer.id) ? 
+                                        <VisibilityIcon fontSize="small" /> : 
+                                        <VisibilityOffIcon fontSize="small" />
+                                      }
+                                    </IconButton>
+                                  </Tooltip>
+                                  
+                                  {lockedLayers.includes(layer.id) ? (
+                                    <Tooltip title="Déverrouiller">
+                                      <IconButton 
+                                        edge="end" 
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          lockLayer(layer.id, false);
+                                        }}
+                                      >
+                                        <LockIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  ) : (
+                                    <Tooltip title="Plus d'options">
+                                      <IconButton 
+                                        edge="end" 
+                                        size="small"
+                                        onClick={(e) => handleLayerMenuOpen(e, layer.id)}
+                                      >
+                                        <MoreVertIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                            </LayerItem>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </Box>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
+          </Box>
+          
+          {/* Quick Actions - fixed at the bottom */}
+          <Box sx={{ mt: 2, flexShrink: 0 }}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="primary"
+              startIcon={<AnalyticsIcon />}
+              onClick={onShowAnalysis}
+            >
+              Analyse spatiale
+            </Button>
+          </Box>
+        </TabPanel>
         
-        {/* Quick Actions */}
-        <Box sx={{ mt: 2 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            startIcon={<AnalyticsIcon />}
-            onClick={onShowAnalysis}
-          >
-            Analyse spatiale
-          </Button>
-        </Box>
-      </TabPanel>
-      
-      {/* Other tabs would go here */}
-      <TabPanel value={activeTab} index={1}>
-        {/* Basemaps content */}
-        <Typography variant="body2">
-          Configuration des fonds de carte
-        </Typography>
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index={2}>
-        {/* Data tab content */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={onImportData}
-          >
-            Importer des données
-          </Button>
-          
-          <Button
-            variant="outlined"
-          >
-            Exporter des données
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<AnalyticsIcon />}
-            onClick={onShowAnalysis}
-          >
-            Analyse spatiale
-          </Button>
-        </Box>
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index={3}>
-        {/* Settings tab content */}
-        <Typography variant="body2">
-          Paramètres de l'application
-        </Typography>
-      </TabPanel>
+        {/* Other tabs would go here */}
+        <TabPanel value={activeTab} index={1}>
+          {/* Basemaps content */}
+          <Typography variant="body2">
+            Configuration des fonds de carte
+          </Typography>
+        </TabPanel>
+        
+        <TabPanel value={activeTab} index={2}>
+          {/* Data tab content */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={onImportData}
+            >
+              Importer des données
+            </Button>
+            
+            <Button
+              variant="outlined"
+            >
+              Exporter des données
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<AnalyticsIcon />}
+              onClick={onShowAnalysis}
+            >
+              Analyse spatiale
+            </Button>
+          </Box>
+        </TabPanel>
+        
+        <TabPanel value={activeTab} index={3}>
+          {/* Settings tab content */}
+          <Typography variant="body2">
+            Paramètres de l'application
+          </Typography>
+        </TabPanel>
+      </Box>
       
       {/* Layer Context Menu */}
       <Menu

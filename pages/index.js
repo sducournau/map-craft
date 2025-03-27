@@ -14,6 +14,7 @@ import useDataState from '../hooks/useDataState.js';
 import useLayerManager from '../hooks/useLayerManager.js';
 import { generateSampleData } from '../utils/dataFormatters.js';
 import MainLayout from '../components/Layout/MainLayout';
+import styles from '../styles/Home.module.css';
 
 // Loading component
 const Loading = () => (
@@ -48,6 +49,10 @@ const DeckGLMap = dynamic(() => import('../components/Map/DeckGLMap'), {
 });
 
 const AdvancedMapControls = dynamic(() => import('../components/Map/AdvancedMapControls'), {
+  ssr: false,
+});
+
+const MapLegend = dynamic(() => import('../components/Map/MapLegend'), {
   ssr: false,
 });
 
@@ -156,6 +161,14 @@ export default function Home() {
         <title>MapCraft - Éditeur Cartographique</title>
         <meta name="description" content="Éditeur cartographique avancé avec visualisation et analyse spatiale" />
         <link rel="icon" href="/favicon.ico" />
+        <style>{`
+          html, body, #__next {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+          }
+        `}</style>
       </Head>
       
       <MainLayout
@@ -167,7 +180,12 @@ export default function Home() {
         }
         title="MapCraft Studio"
       >
-        <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+        <Box className={styles.mapContainer} sx={{ 
+          position: 'relative', 
+          width: '100%', 
+          height: '100%',
+          overflow: 'hidden'
+        }}>
           {/* Main Map */}
           <DeckGLMap
             layers={mapLayers}
@@ -177,6 +195,9 @@ export default function Home() {
           
           {/* Map Controls */}
           <AdvancedMapControls />
+          
+          {/* Map Legend */}
+          <MapLegend />
           
           {/* Modals and Dialogs */}
           {showAnalysis && (
