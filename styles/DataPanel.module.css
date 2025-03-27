@@ -1,0 +1,80 @@
+.dataPanel {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background-color: rgba(26, 32, 44, 0.9);
+    color: #f7fafc;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    width: 300px;
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 5;
+  }
+  
+  .dataPanel h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    font-weight: 500;
+  }
+  
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .row:last-child {
+    margin-bottom: 0;
+  }
+  
+  .row label {
+    font-size: 0.9rem;
+    color: #a0aec0;
+  }
+  
+  .row select, .row input {
+    background-color: #2d3748;
+    color: #f7fafc;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .row input[type="range"] {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    -webkit-appearance: none;
+  }
+  
+  .row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #4299e1;
+    cursor: pointer;
+    margin-top: -6px;
+  }
+  
+  .row input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 4px;
+    cursor: pointer;
+    background: #4a5568;
+    border-radius: 2px;
+  }
+  
+  .row input[type="range"]:focus {
+    outline: none;
+  }
+  
+  .row input[type="range"]:focus::-webkit-slider-thumb {
+    background: #63b3ed;
+  }
