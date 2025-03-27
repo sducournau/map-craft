@@ -75,7 +75,7 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
         setHoverInfo(null);
       }
     }
-  }), [layers, viewState, onViewStateChange]);
+  }), [layers, viewState, onViewStateChange, setHoverInfo]); // Added setHoverInfo dependency
 
   // Select appropriate map style based on theme
   const mapStyle = useMemo(() => {

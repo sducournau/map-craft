@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import useMapState from '../../hooks/useMapState';
 
-const MapControls = ({ viewState, setViewState }) => {
+const MapControls = () => {
+  const { viewState, setViewState } = useMapState();
   const [is3D, setIs3D] = useState(false);
   
   useEffect(() => {
@@ -63,12 +65,54 @@ const MapControls = ({ viewState, setViewState }) => {
   };
 
   return (
-    <>
-      <div className="map-control-panel">
-        {/* Controls content */}
+    <div className="map-control-panel">
+      <div className="map-control-buttons">
+        <button 
+          className="btn-floating waves-effect waves-light tooltipped"
+          data-position="left" 
+          data-tooltip="Zoom in"
+          onClick={handleZoomIn}
+        >
+          <i className="material-icons">add</i>
+        </button>
+        
+        <button 
+          className="btn-floating waves-effect waves-light tooltipped"
+          data-position="left" 
+          data-tooltip="Zoom out"
+          onClick={handleZoomOut}
+        >
+          <i className="material-icons">remove</i>
+        </button>
+        
+        <button 
+          className="btn-floating waves-effect waves-light tooltipped"
+          data-position="left" 
+          data-tooltip="Reset north"
+          onClick={handleResetNorth}
+        >
+          <i className="material-icons">navigation</i>
+        </button>
+        
+        <button 
+          className="btn-floating waves-effect waves-light tooltipped"
+          data-position="left" 
+          data-tooltip={is3D ? "2D view" : "3D view"}
+          onClick={handle3DToggle}
+        >
+          <i className="material-icons">{is3D ? "map" : "view_in_ar"}</i>
+        </button>
+        
+        <button 
+          className="btn-floating waves-effect waves-light tooltipped"
+          data-position="left" 
+          data-tooltip="Reset view"
+          onClick={handleResetView}
+        >
+          <i className="material-icons">home</i>
+        </button>
       </div>
-      {/* Other components */}
-    </>
+    </div>
   );
 };
 

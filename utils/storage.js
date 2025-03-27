@@ -10,6 +10,13 @@ const DB_VERSION = 1;
 const PROJECTS_STORE = 'projects';
 const DATASETS_STORE = 'datasets';
 
+// Function to check if IndexedDB is available
+const isIndexedDBAvailable = () => {
+  return typeof window !== 'undefined' && 
+         window.indexedDB !== undefined && 
+         window.indexedDB !== null;
+};
+
 /**
  * Sauvegarde un projet dans IndexedDB
  * @param {Object} project - Objet contenant les données du projet
@@ -17,8 +24,12 @@ const DATASETS_STORE = 'datasets';
  */
 export const saveProject = (project) => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    if (!isIndexedDBAvailable()) {
+      reject(new Error('Your browser doesn\'t support IndexedDB. Some features may not work.'));
+      return;
+    }
     
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
     // Gérer la création/mise à jour de la structure de la base de données
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
