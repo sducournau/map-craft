@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FiX, FiCpu, FiBarChart2, FiSearch, FiPlus, FiMap } from 'react-icons/fi';
-import useLayerManager from '../../hooks/useLayerManager';
+import useLayerManager from '../../hooks/useLayerManager.js';
 import * as turf from '@turf/turf';
 
 const SpatialAnalysis = ({ onClose }) => {

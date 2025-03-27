@@ -17,7 +17,7 @@ import {
   FiMove,
   FiSliders
 } from 'react-icons/fi';
-import { useMapStore } from '@/hooks/useMapState';
+import useMapStore from '../../hooks/useMapState.js';
 
 const AdvancedMapControls = () => {
   const { 

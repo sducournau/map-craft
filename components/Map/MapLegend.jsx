@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import useLayerManager from '@/hooks/useLayerManager';
+import useLayerManager from '../../hooks/useLayerManager.js';
 
 const MapLegend = () => {
   const { 

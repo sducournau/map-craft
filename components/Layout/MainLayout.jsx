@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useThemeStore } from '@/hooks/useThemeState';
+import { useThemeStore } from '../../hooks/useThemeState.js';
 
 const MainLayout = ({ children, sidebarContent }) => {
   const { theme } = useThemeStore();

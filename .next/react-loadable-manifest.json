@@ -1,0 +1,32 @@
+{
+  "node_modules\\react-map-gl\\dist\\esm\\exports-mapbox.js -> mapbox-gl": {
+    "id": "node_modules\\react-map-gl\\dist\\esm\\exports-mapbox.js -> mapbox-gl",
+    "files": [
+      "static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_js.js"
+    ]
+  },
+  "pages\\index.js -> ../components/Map/DeckGLMap": {
+    "id": "pages\\index.js -> ../components/Map/DeckGLMap",
+    "files": [
+      "static/chunks/components_Map_DeckGLMap_jsx.js"
+    ]
+  },
+  "pages\\index.js -> ../components/Map/MapControls": {
+    "id": "pages\\index.js -> ../components/Map/MapControls",
+    "files": [
+      "static/chunks/components_Map_MapControls_jsx.js"
+    ]
+  },
+  "pages\\index.js -> ../components/UI/DataPanel": {
+    "id": "pages\\index.js -> ../components/UI/DataPanel",
+    "files": [
+      "static/chunks/components_UI_DataPanel_jsx.js"
+    ]
+  },
+  "pages\\index.js -> ../components/UI/Sidebar": {
+    "id": "pages\\index.js -> ../components/UI/Sidebar",
+    "files": [
+      "static/chunks/components_UI_Sidebar_jsx.js"
+    ]
+  }
+}

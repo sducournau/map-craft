@@ -5,7 +5,7 @@ import {
   generateSampleData,
   processGeoPackage,
   processShapefile
-} from '../../utils/dataFormatters';
+} from '../../utils/dataFormatters.js';
 import { 
   Box, 
   Typography, 

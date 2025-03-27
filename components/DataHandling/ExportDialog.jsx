@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FiX, FiDownload, FiClipboard, FiSave } from 'react-icons/fi';
-import useLayerManager from '../../hooks/useLayerManager';
+import useLayerManager from '../../hooks/useLayerManager.js';
 
 const ExportDialog = ({ onClose }) => {
   const { layers, visibleLayers } = useLayerManager();
