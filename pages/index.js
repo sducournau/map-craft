@@ -21,8 +21,8 @@ const Loading = () => (
 export default function Home() {
   const { viewState, setViewState } = useMapState();
   const { 
-    data, 
-    setData, 
+    addData, // Use addData instead of setData
+    datasets,
     visualizationType, 
     setVisualizationType, 
     classificationMethod, 
@@ -41,12 +41,12 @@ export default function Home() {
   // Charger des données d'exemple au démarrage
   useEffect(() => {
     const sampleData = generateSampleData('points', 100);
-    setData(sampleData);
-  }, [setData]);
+    addData(sampleData, 'Sample Points');
+  }, [addData]);
   
   // Handle imported data
   const handleDataImported = (newData) => {
-    setData(newData);
+    addData(newData, 'Imported Data');
     
     // Adapter le type de visualisation selon les données
     if (newData && newData.features && newData.features.length > 0) {

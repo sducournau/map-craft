@@ -71,7 +71,7 @@ export default function DataPanel({
       
       <div className={styles.row}>
         <label htmlFor="opacity">
-          Opacité: {opacity.toFixed(1)}
+          Opacité: {opacity}
         </label>
         <input 
           id="opacity"
