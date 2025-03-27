@@ -1,56 +1,114 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FiSliders, 
-  FiX, 
-  FiPieChart, 
-  FiCircle, 
-  FiSquare, 
-  FiGrid, 
-  FiHexagon,
-  FiMapPin,
-  FiBarChart2,
-  FiLayers,
-  FiType,
-  FiList,
-  FiFile,
-  FiFileText,
-  FiCpu,
-  FiSettings,
-  FiEye
-} from 'react-icons/fi';
-import { useLayerManager } from '@/hooks/useLayerManager';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  IconButton,
+  Typography,
+  Box,
+  Grid,
+  Paper,
+  Divider,
+  Tabs,
+  Tab,
+  TextField,
+  Slider,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  FormControlLabel,
+  Switch,
+  Chip,
+  Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+  CircularProgress,
+  Alert
+} from '@mui/material';
+import { styled, useTheme } from '@mui/material/styles';
+import CloseIcon from '@mui/icons-material/Close';
+import TuneIcon from '@mui/icons-material/Tune';
+import FormatPaintIcon from '@mui/icons-material/FormatPaint';
+import OpacityIcon from '@mui/icons-material/Opacity';
+import PaletteIcon from '@mui/icons-material/Palette';
+import CategoryIcon from '@mui/icons-material/Category';
+import LensIcon from '@mui/icons-material/Lens';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import BubbleChartIcon from '@mui/icons-material/BubbleChart';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import TextFieldsIcon from '@mui/icons-material/TextFields';
+import LayersIcon from '@mui/icons-material/Layers';
+import ColorLensIcon from '@mui/icons-material/ColorLens';
+import { schemeBlues, schemeReds, schemeGreens, schemePurples, schemeViridis } from 'd3-scale-chromatic';
+import { useLayerManager } from '../../hooks/useLayerManager';
 import ColorPicker from './Controls/ColorPicker';
 
-const LayerStyleEditor = ({ onClose }) => {
-  const { layers, activeLayer, updateLayerStyle, updateLayerMetadata } = useLayerManager();
+// Styled components
+const StyledDialogTitle = styled(DialogTitle)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.spacing(2),
+}));
+
+const StyleOptionPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  '&:hover': {
+    boxShadow: theme.shadows[3],
+  },
+}));
+
+const ColorSwatch = styled(Box)(({ theme }) => ({
+  width: 20,
+  height: 20,
+  borderRadius: '50%',
+  marginRight: theme.spacing(1),
+  border: `1px solid ${theme.palette.divider}`,
+}));
+
+const LayerStyleEditor = ({ onClose, layerId }) => {
+  const theme = useTheme();
+  const { layers, updateLayerStyle, updateLayerMetadata } = useLayerManager();
   const [visualizationConfig, setVisualizationConfig] = useState({});
   const [availableFields, setAvailableFields] = useState([]);
   const [numericFields, setNumericFields] = useState([]);
   const [categoricalFields, setCategoricalFields] = useState([]);
   const [previewMode, setPreviewMode] = useState(false);
   const [layerName, setLayerName] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState(null);
   
-  // Obtenir la couche active
-  const layer = layers.find(l => l.id === activeLayer);
+  // Get the selected layer
+  const layer = layers.find(l => l.id === layerId);
   
-  // Charger la configuration de la couche active
+  // Load layer configuration on mount
   useEffect(() => {
     if (!layer) return;
     
-    // Définir le nom de la couche
+    // Set layer name
     setLayerName(layer.title || layer.id);
     
-    // Charger la configuration actuelle de style
+    // Load current style configuration
     setVisualizationConfig(layer.style || {});
     
-    // Analyser les champs disponibles dans les données
+    // Analyze available fields in the data
     if (layer.data) {
       const fields = [];
       const numFields = [];
       const catFields = [];
       
       if (Array.isArray(layer.data)) {
-        // Données tabulaires
+        // Tabular data
         if (layer.data.length > 0) {
           const sample = layer.data[0];
           Object.entries(sample).forEach(([key, value]) => {
@@ -84,7 +142,12 @@ const LayerStyleEditor = ({ onClose }) => {
     }
   }, [layer]);
   
-  // Mettre à jour la configuration
+  // Handle tab change
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+  
+  // Update visualization configuration
   const handleConfigChange = (key, value) => {
     setVisualizationConfig(prev => ({
       ...prev,
@@ -92,57 +155,71 @@ const LayerStyleEditor = ({ onClose }) => {
     }));
   };
   
-  // Appliquer les changements
+  // Apply changes to the layer
   const applyChanges = () => {
     if (!layer) return;
     
-    // Mettre à jour le style
-    updateLayerStyle(layer.id, visualizationConfig);
+    setIsProcessing(true);
+    setMessage({ type: 'info', text: 'Application des changements...' });
     
-    // Mettre à jour le nom de la couche
-    if (layerName !== layer.title) {
-      updateLayerMetadata(layer.id, {
-        title: layerName
-      });
+    try {
+      // Update layer style
+      updateLayerStyle(layer.id, visualizationConfig);
+      
+      // Update layer name if changed
+      if (layerName !== layer.title) {
+        updateLayerMetadata(layer.id, {
+          title: layerName
+        });
+      }
+      
+      setMessage({ type: 'success', text: 'Modifications appliquées avec succès' });
+      
+      // Close after a short delay
+      setTimeout(() => {
+        if (onClose) onClose();
+      }, 1500);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Erreur: ${error.message}` });
+    } finally {
+      setIsProcessing(false);
     }
-    
-    if (onClose) onClose();
   };
   
-  // Types de visualisations disponibles selon le type de données
+  // Get available visualization types based on layer geometry
   const getAvailableVisualizations = () => {
     if (!layer) return [];
     
-    // Types de base disponibles pour tous
+    // Base visualizations available for all
     const baseVisualizations = [
-      { id: layer.type, label: 'Actuel', icon: <FiSliders /> },
+      { id: layer.type, label: 'Actuel', icon: <TuneIcon /> },
     ];
     
-    // Différentes visualisations selon le type de couche
+    // Different visualizations by layer type
     switch (layer.type) {
       case 'point':
         return [
           ...baseVisualizations,
-          { id: 'scatterplot', label: 'Points', icon: <FiCircle /> },
-          { id: 'heatmap', label: 'Chaleur', icon: <FiSquare /> },
-          { id: 'cluster', label: 'Cluster', icon: <FiGrid /> },
-          { id: 'hexagon', label: 'Hexbin', icon: <FiHexagon /> },
-          { id: 'icon', label: 'Icônes', icon: <FiMapPin /> },
-          { id: 'text', label: 'Texte', icon: <FiType /> }
+          { id: 'scatterplot', label: 'Points', icon: <LensIcon /> },
+          { id: 'heatmap', label: 'Chaleur', icon: <OpacityIcon /> },
+          { id: 'cluster', label: 'Cluster', icon: <BubbleChartIcon /> },
+          { id: 'hexagon', label: 'Hexbin', icon: <GridOnIcon /> },
+          { id: 'icon', label: 'Icônes', icon: <CategoryIcon /> },
+          { id: 'text', label: 'Texte', icon: <TextFieldsIcon /> }
         ];
         
       case 'choropleth':
         return [
           ...baseVisualizations,
-          { id: 'choropleth', label: 'Choroplèthe', icon: <FiLayers /> },
-          { id: '3d', label: 'Extrusion 3D', icon: <FiBarChart2 /> }
+          { id: 'choropleth', label: 'Choroplèthe', icon: <LayersIcon /> },
+          { id: '3d', label: 'Extrusion 3D', icon: <ViewInArIcon /> }
         ];
         
       case 'line':
         return [
           ...baseVisualizations,
-          { id: 'line', label: 'Lignes', icon: <FiList /> },
-          { id: 'trips', label: 'Trajectoires', icon: <FiFile /> }
+          { id: 'line', label: 'Lignes', icon: <TimelineIcon /> },
+          { id: 'trips', label: 'Trajectoires', icon: <TimelineIcon /> }
         ];
         
       default:
@@ -150,477 +227,923 @@ const LayerStyleEditor = ({ onClose }) => {
     }
   };
   
+  // Get color scale options
+  const getColorScaleOptions = () => {
+    return [
+      { value: 'sequential', label: 'Séquentielle', description: 'Progression du clair au foncé' },
+      { value: 'diverging', label: 'Divergente', description: 'Valeurs extrêmes opposées' },
+      { value: 'categorical', label: 'Catégorielle', description: 'Couleurs distinctes par catégorie' }
+    ];
+  };
+  
+  // Get classification methods
+  const getClassificationMethods = () => {
+    return [
+      { value: 'quantile', label: 'Quantiles', description: 'Nombre égal d\'éléments par classe' },
+      { value: 'equal', label: 'Intervalles égaux', description: 'Plages de valeurs de même taille' },
+      { value: 'jenks', label: 'Natural Breaks', description: 'Minimise les variations dans chaque classe' }
+    ];
+  };
+  
+  // Get predefined color palettes
+  const getColorPalettes = () => {
+    return {
+      sequential: [
+        { name: 'Blues', colors: schemeBlues[9] },
+        { name: 'Reds', colors: schemeReds[9] },
+        { name: 'Greens', colors: schemeGreens[9] },
+        { name: 'Purples', colors: schemePurples[9] },
+        { name: 'Viridis', colors: schemeViridis[9] }
+      ],
+      diverging: [
+        { name: 'Red-Blue', colors: [
+          [103, 0, 31], [178, 24, 43], [214, 96, 77], [244, 165, 130], [253, 219, 199],
+          [209, 229, 240], [146, 197, 222], [67, 147, 195], [33, 102, 172], [5, 48, 97]
+        ]},
+        { name: 'Green-Purple', colors: [
+          [64, 0, 75], [118, 42, 131], [153, 112, 171], [194, 165, 207], [231, 212, 232],
+          [217, 240, 211], [166, 219, 160], [90, 174, 97], [27, 120, 55], [0, 68, 27]
+        ]}
+      ],
+      categorical: [
+        { name: 'Category10', colors: [
+          [31, 119, 180], [255, 127, 14], [44, 160, 44], [214, 39, 40], [148, 103, 189],
+          [140, 86, 75], [227, 119, 194], [127, 127, 127], [188, 189, 34], [23, 190, 207]
+        ]},
+        { name: 'Pastel', colors: [
+          [141, 211, 199], [255, 255, 179], [190, 186, 218], [251, 128, 114], 
+          [128, 177, 211], [253, 180, 98], [179, 222, 105], [252, 205, 229], 
+          [217, 217, 217], [188, 128, 189]
+        ]}
+      ]
+    };
+  };
+  
   if (!layer) {
     return (
-      <div className="p-4 text-center text-slate-500 dark:text-slate-400">
-        Aucune couche sélectionnée
-      </div>
+      <Dialog open={true} onClose={onClose}>
+        <DialogContent>
+          <Typography>
+            Aucune couche sélectionnée
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Fermer</Button>
+        </DialogActions>
+      </Dialog>
     );
   }
   
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-700">
-        <h3 className="font-medium flex items-center">
-          <FiSettings className="mr-2" />
-          Style de couche
-        </h3>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+    <Dialog
+      open={true}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          height: '90vh',
+          maxHeight: 700,
+        },
+      }}
+    >
+      <StyledDialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <FormatPaintIcon sx={{ mr: 1 }} />
+          <Typography variant="h6">Éditeur de style</Typography>
+        </Box>
+        <IconButton aria-label="close" onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </StyledDialogTitle>
+      
+      <Tabs
+        value={activeTab}
+        onChange={handleTabChange}
+        variant="fullWidth"
+        textColor="primary"
+        indicatorColor="primary"
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="Base" />
+        <Tab label="Couleur" />
+        <Tab label="Forme & Taille" />
+        <Tab label="Étiquettes" />
+      </Tabs>
+      
+      <DialogContent>
+        {activeTab === 0 && (
+          // Base tab
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <TextField
+                label="Nom de la couche"
+                fullWidth
+                variant="outlined"
+                value={layerName}
+                onChange={(e) => setLayerName(e.target.value)}
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                Type de visualisation
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {getAvailableVisualizations().map(vizType => (
+                  <Grid item xs={6} sm={4} md={3} key={vizType.id}>
+                    <StyleOptionPaper
+                      elevation={visualizationConfig.visualizationType === vizType.id ? 3 : 1}
+                      onClick={() => handleConfigChange('visualizationType', vizType.id)}
+                      sx={{
+                        border: visualizationConfig.visualizationType === vizType.id ? 2 : 0,
+                        borderColor: 'primary.main',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                        <Box 
+                          sx={{ 
+                            color: visualizationConfig.visualizationType === vizType.id ? 'primary.main' : 'text.secondary',
+                          }}
+                        >
+                          {vizType.icon}
+                        </Box>
+                      </Box>
+                      <Typography 
+                        variant="subtitle2" 
+                        align="center"
+                        color={visualizationConfig.visualizationType === vizType.id ? 'primary' : 'textPrimary'}
+                      >
+                        {vizType.label}
+                      </Typography>
+                    </StyleOptionPaper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                Paramètres généraux
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Opacité: {(visualizationConfig.opacity || 0.8).toFixed(2)}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.opacity || 0.8}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={(_, value) => handleConfigChange('opacity', value)}
+                      aria-labelledby="opacity-slider"
+                    />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="caption" color="textSecondary">Transparent</Typography>
+                      <Typography variant="caption" color="textSecondary">Opaque</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={visualizationConfig.visible !== false}
+                        onChange={(e) => handleConfigChange('visible', e.target.checked)}
+                      />
+                    }
+                    label="Couche visible"
+                  />
+                  
+                  {['choropleth', 'polygon'].includes(layer.type) && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={visualizationConfig.stroked !== false}
+                          onChange={(e) => handleConfigChange('stroked', e.target.checked)}
+                        />
+                      }
+                      label="Afficher les contours"
+                    />
+                  )}
+                  
+                  {['3d', 'hexagon', 'grid'].includes(layer.type) && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={visualizationConfig.extruded !== false}
+                          onChange={(e) => handleConfigChange('extruded', e.target.checked)}
+                        />
+                      }
+                      label="Activer l'extrusion 3D"
+                    />
+                  )}
+                </Grid>
+              </Grid>
+            </Grid>
+          </Grid>
+        )}
+        
+        {activeTab === 1 && (
+          // Color tab
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                Source de couleur
+              </Typography>
+              
+              <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                <InputLabel id="color-field-label">Variable de couleur</InputLabel>
+                <Select
+                  labelId="color-field-label"
+                  value={visualizationConfig.colorField || ''}
+                  onChange={(e) => handleConfigChange('colorField', e.target.value)}
+                  label="Variable de couleur"
+                >
+                  <MenuItem value="">
+                    <em>Couleur unique</em>
+                  </MenuItem>
+                  {availableFields.length > 0 ? (
+                    <>
+                      <MenuItem disabled>
+                        <em>Variables numériques</em>
+                      </MenuItem>
+                      {numericFields.map(field => (
+                        <MenuItem key={field} value={field}>{field}</MenuItem>
+                      ))}
+                      
+                      <MenuItem disabled>
+                        <em>Variables catégorielles</em>
+                      </MenuItem>
+                      {categoricalFields.map(field => (
+                        <MenuItem key={field} value={field}>{field}</MenuItem>
+                      ))}
+                    </>
+                  ) : (
+                    <MenuItem disabled>
+                      <em>Aucun champ disponible</em>
+                    </MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+              
+              {visualizationConfig.colorField && (
+                <>
+                  <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                    <InputLabel id="color-scale-label">Type d'échelle</InputLabel>
+                    <Select
+                      labelId="color-scale-label"
+                      value={visualizationConfig.colorScale || 'sequential'}
+                      onChange={(e) => handleConfigChange('colorScale', e.target.value)}
+                      label="Type d'échelle"
+                    >
+                      {getColorScaleOptions().map(option => (
+                        <MenuItem key={option.value} value={option.value}>
+                          <Box>
+                            {option.label}
+                            <Typography variant="caption" display="block" color="textSecondary">
+                              {option.description}
+                            </Typography>
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  
+                  {numericFields.includes(visualizationConfig.colorField) && (
+                    <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                      <InputLabel id="classification-method-label">Méthode de classification</InputLabel>
+                      <Select
+                        labelId="classification-method-label"
+                        value={visualizationConfig.classificationMethod || 'quantile'}
+                        onChange={(e) => handleConfigChange('classificationMethod', e.target.value)}
+                        label="Méthode de classification"
+                      >
+                        {getClassificationMethods().map(method => (
+                          <MenuItem key={method.value} value={method.value}>
+                            <Box>
+                              {method.label}
+                              <Typography variant="caption" display="block" color="textSecondary">
+                                {method.description}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                  
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={visualizationConfig.reverseColorScale || false}
+                        onChange={(e) => handleConfigChange('reverseColorScale', e.target.checked)}
+                      />
+                    }
+                    label="Inverser l'échelle de couleurs"
+                  />
+                </>
+              )}
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                {visualizationConfig.colorField ? 'Palette de couleurs' : 'Couleur'}
+              </Typography>
+              
+              {visualizationConfig.colorField ? (
+                // Color palette selection
+                <Box>
+                  {['sequential', 'diverging', 'categorical'].map(scaleType => (
+                    <Box 
+                      key={scaleType} 
+                      sx={{ 
+                        mb: 2, 
+                        display: visualizationConfig.colorScale === scaleType ? 'block' : 'none' 
+                      }}
+                    >
+                      {getColorPalettes()[scaleType].map(palette => (
+                        <Box 
+                          key={palette.name}
+                          onClick={() => handleConfigChange('colorRange', palette.colors)}
+                          sx={{ 
+                            mb: 1, 
+                            cursor: 'pointer',
+                            border: JSON.stringify(visualizationConfig.colorRange) === JSON.stringify(palette.colors) ? 2 : 1,
+                            borderColor: JSON.stringify(visualizationConfig.colorRange) === JSON.stringify(palette.colors) ? 'primary.main' : 'divider',
+                            borderRadius: 1,
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <Box sx={{ 
+                            display: 'flex', 
+                            height: 24,
+                            ...(visualizationConfig.reverseColorScale && { flexDirection: 'row-reverse' })
+                          }}>
+                            {palette.colors.map((color, index) => (
+                              <Box 
+                                key={index} 
+                                sx={{ 
+                                  flex: 1, 
+                                  bgcolor: `rgb(${color[0]}, ${color[1]}, ${color[2]})` 
+                                }} 
+                              />
+                            ))}
+                          </Box>
+                          <Box sx={{ p: 1 }}>
+                            <Typography variant="caption">{palette.name}</Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                // Single color picker
+                <ColorPicker
+                  initialValue={visualizationConfig.color}
+                  onChange={(color) => handleConfigChange('color', color)}
+                />
+              )}
+              
+              {/* Color preview */}
+              {visualizationConfig.colorField && visualizationConfig.colorRange && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Aperçu
+                  </Typography>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      height: 30,
+                      borderRadius: 1,
+                      overflow: 'hidden',
+                      ...(visualizationConfig.reverseColorScale && { flexDirection: 'row-reverse' })
+                    }}>
+                      {visualizationConfig.colorRange.map((color, index) => (
+                        <Box 
+                          key={index} 
+                          sx={{ 
+                            flex: 1, 
+                            bgcolor: `rgb(${color[0]}, ${color[1]}, ${color[2]})` 
+                          }} 
+                        />
+                      ))}
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                      <Typography variant="caption">Min</Typography>
+                      <Typography variant="caption">
+                        {visualizationConfig.colorField || 'Valeur'}
+                      </Typography>
+                      <Typography variant="caption">Max</Typography>
+                    </Box>
+                  </Paper>
+                </Box>
+              )}
+            </Grid>
+          </Grid>
+        )}
+        
+        {activeTab === 2 && (
+          // Shape & Size tab
+          <Grid container spacing={3}>
+            {/* Size options for point layers */}
+            {['point', 'scatterplot', 'icon', 'text'].includes(layer.type) && (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Source de taille
+                  </Typography>
+                  
+                  <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                    <InputLabel id="size-field-label">Variable de taille</InputLabel>
+                    <Select
+                      labelId="size-field-label"
+                      value={visualizationConfig.sizeField || ''}
+                      onChange={(e) => handleConfigChange('sizeField', e.target.value)}
+                      label="Variable de taille"
+                    >
+                      <MenuItem value="">
+                        <em>Taille fixe</em>
+                      </MenuItem>
+                      {numericFields.map(field => (
+                        <MenuItem key={field} value={field}>{field}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      {visualizationConfig.sizeField ? 'Taille maximale' : 'Taille'}: {visualizationConfig.radius || 5}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.radius || 5}
+                      min={1}
+                      max={50}
+                      step={1}
+                      onChange={(_, value) => handleConfigChange('radius', value)}
+                      aria-labelledby="radius-slider"
+                    />
+                  </Box>
+                  
+                  {visualizationConfig.sizeField && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" gutterBottom>
+                        Facteur d'échelle: {visualizationConfig.sizeScale || 1}
+                      </Typography>
+                      <Slider
+                        value={visualizationConfig.sizeScale || 1}
+                        min={0.1}
+                        max={10}
+                        step={0.1}
+                        onChange={(_, value) => handleConfigChange('sizeScale', value)}
+                        aria-labelledby="size-scale-slider"
+                      />
+                    </Box>
+                  )}
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Apparence des points
+                  </Typography>
+                  
+                  {layer.type === 'point' && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" gutterBottom>
+                        Forme des points
+                      </Typography>
+                      <ToggleButtonGroup
+                        value={visualizationConfig.pointType || 'circle'}
+                        exclusive
+                        onChange={(_, value) => {
+                          if (value) handleConfigChange('pointType', value);
+                        }}
+                        aria-label="point type"
+                        size="small"
+                      >
+                        <ToggleButton value="circle">
+                          <Tooltip title="Cercles">
+                            <LensIcon fontSize="small" />
+                          </Tooltip>
+                        </ToggleButton>
+                        <ToggleButton value="square">
+                          <Tooltip title="Carrés">
+                            <GridOnIcon fontSize="small" />
+                          </Tooltip>
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    </Box>
+                  )}
+                  
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={visualizationConfig.stroked !== false}
+                        onChange={(e) => handleConfigChange('stroked', e.target.checked)}
+                      />
+                    }
+                    label="Afficher les contours"
+                  />
+                  
+                  {visualizationConfig.stroked !== false && (
+                    <Box sx={{ mb: 2, pl: 4 }}>
+                      <Typography variant="body2" gutterBottom>
+                        Largeur du contour: {visualizationConfig.lineWidth || 1}
+                      </Typography>
+                      <Slider
+                        value={visualizationConfig.lineWidth || 1}
+                        min={1}
+                        max={5}
+                        step={1}
+                        onChange={(_, value) => handleConfigChange('lineWidth', value)}
+                        aria-labelledby="line-width-slider"
+                      />
+                    </Box>
+                  )}
+                </Grid>
+              </>
+            )}
+            
+            {/* 3D options */}
+            {['3d', 'hexagon', 'grid'].includes(layer.type) && (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Élévation 3D
+                  </Typography>
+                  
+                  <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                    <InputLabel id="height-field-label">Variable d'élévation</InputLabel>
+                    <Select
+                      labelId="height-field-label"
+                      value={visualizationConfig.heightField || ''}
+                      onChange={(e) => handleConfigChange('heightField', e.target.value)}
+                      label="Variable d'élévation"
+                    >
+                      <MenuItem value="">
+                        <em>Élévation fixe</em>
+                      </MenuItem>
+                      {numericFields.map(field => (
+                        <MenuItem key={field} value={field}>{field}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Échelle d'élévation: {visualizationConfig.elevationScale || 1}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.elevationScale || 1}
+                      min={0.1}
+                      max={10}
+                      step={0.1}
+                      onChange={(_, value) => handleConfigChange('elevationScale', value)}
+                      aria-labelledby="elevation-scale-slider"
+                    />
+                  </Box>
+                  
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={visualizationConfig.wireframe || false}
+                        onChange={(e) => handleConfigChange('wireframe', e.target.checked)}
+                      />
+                    }
+                    label="Afficher en fil de fer"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Options d'agrégation
+                  </Typography>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Taille des cellules (m): {visualizationConfig.cellSize || 1000}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.cellSize || 1000}
+                      min={100}
+                      max={10000}
+                      step={100}
+                      onChange={(_, value) => handleConfigChange('cellSize', value)}
+                      aria-labelledby="cell-size-slider"
+                    />
+                  </Box>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Couverture: {visualizationConfig.coverage || 0.8}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.coverage || 0.8}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={(_, value) => handleConfigChange('coverage', value)}
+                      aria-labelledby="coverage-slider"
+                    />
+                  </Box>
+                </Grid>
+              </>
+            )}
+            
+            {/* Line options */}
+            {layer.type === 'line' && (
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                  Options de ligne
+                </Typography>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    Largeur (pixels): {visualizationConfig.lineWidth || 1}
+                  </Typography>
+                  <Slider
+                    value={visualizationConfig.lineWidth || 1}
+                    min={1}
+                    max={20}
+                    step={1}
+                    onChange={(_, value) => handleConfigChange('lineWidth', value)}
+                    aria-labelledby="line-width-slider"
+                  />
+                </Box>
+                
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={visualizationConfig.rounded || false}
+                      onChange={(e) => handleConfigChange('rounded', e.target.checked)}
+                    />
+                  }
+                  label="Arrondir les bords"
+                />
+              </Grid>
+            )}
+            
+            {/* Choropleth options */}
+            {['choropleth', 'polygon'].includes(layer.type) && (
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                  Options de polygone
+                </Typography>
+                
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={visualizationConfig.filled !== false}
+                      onChange={(e) => handleConfigChange('filled', e.target.checked)}
+                    />
+                  }
+                  label="Polygones remplis"
+                />
+                
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={visualizationConfig.stroked !== false}
+                      onChange={(e) => handleConfigChange('stroked', e.target.checked)}
+                    />
+                  }
+                  label="Afficher les contours"
+                />
+                
+                {visualizationConfig.stroked !== false && (
+                  <Box sx={{ mb: 2, pl: 4 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Largeur du contour: {visualizationConfig.lineWidth || 1}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.lineWidth || 1}
+                      min={1}
+                      max={5}
+                      step={1}
+                      onChange={(_, value) => handleConfigChange('lineWidth', value)}
+                      aria-labelledby="line-width-slider"
+                    />
+                  </Box>
+                )}
+              </Grid>
+            )}
+            
+            {/* Heatmap options */}
+            {layer.type === 'heatmap' && (
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                  Options de carte de chaleur
+                </Typography>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    Rayon (pixels): {visualizationConfig.radius || 30}
+                  </Typography>
+                  <Slider
+                    value={visualizationConfig.radius || 30}
+                    min={1}
+                    max={100}
+                    step={1}
+                    onChange={(_, value) => handleConfigChange('radius', value)}
+                    aria-labelledby="radius-slider"
+                  />
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    Intensité: {visualizationConfig.intensity || 1}
+                  </Typography>
+                  <Slider
+                    value={visualizationConfig.intensity || 1}
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    onChange={(_, value) => handleConfigChange('intensity', value)}
+                    aria-labelledby="intensity-slider"
+                  />
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    Seuil: {visualizationConfig.threshold || 0.05}
+                  </Typography>
+                  <Slider
+                    value={visualizationConfig.threshold || 0.05}
+                    min={0.01}
+                    max={0.5}
+                    step={0.01}
+                    onChange={(_, value) => handleConfigChange('threshold', value)}
+                    aria-labelledby="threshold-slider"
+                  />
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        )}
+        
+        {activeTab === 3 && (
+          // Labels tab
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                Étiquettes et infobulles
+              </Typography>
+              
+              <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                <InputLabel id="text-field-label">Champ d'étiquette</InputLabel>
+                <Select
+                  labelId="text-field-label"
+                  value={visualizationConfig.textField || ''}
+                  onChange={(e) => handleConfigChange('textField', e.target.value)}
+                  label="Champ d'étiquette"
+                >
+                  <MenuItem value="">
+                    <em>Aucune étiquette</em>
+                  </MenuItem>
+                  {availableFields.map(field => (
+                    <MenuItem key={field} value={field}>{field}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              {visualizationConfig.textField && (
+                <>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Taille du texte: {visualizationConfig.textSize || 12}
+                    </Typography>
+                    <Slider
+                      value={visualizationConfig.textSize || 12}
+                      min={8}
+                      max={24}
+                      step={1}
+                      onChange={(_, value) => handleConfigChange('textSize', value)}
+                      aria-labelledby="text-size-slider"
+                    />
+                  </Box>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <FormControl fullWidth variant="outlined" size="small">
+                      <InputLabel id="text-color-label">Couleur du texte</InputLabel>
+                      <Select
+                        labelId="text-color-label"
+                        value={visualizationConfig.textColor || 'auto'}
+                        onChange={(e) => handleConfigChange('textColor', e.target.value)}
+                        label="Couleur du texte"
+                      >
+                        <MenuItem value="auto">
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <ColorSwatch sx={{ background: 'linear-gradient(45deg, #000 0%, #000 50%, #fff 50%, #fff 100%)' }} />
+                            <span>Automatique (contraste)</span>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="light">
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <ColorSwatch sx={{ bgcolor: '#ffffff' }} />
+                            <span>Blanc</span>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="dark">
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <ColorSwatch sx={{ bgcolor: '#000000' }} />
+                            <span>Noir</span>
+                          </Box>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                  
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={visualizationConfig.textHalo || false}
+                        onChange={(e) => handleConfigChange('textHalo', e.target.checked)}
+                      />
+                    }
+                    label="Ajouter un halo autour du texte"
+                  />
+                </>
+              )}
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                Infobulle
+              </Typography>
+              
+              <Typography variant="body2" paragraph>
+                Sélectionnez les champs à afficher dans l'infobulle
+              </Typography>
+              
+              <Box sx={{ maxHeight: 200, overflow: 'auto', mb: 2 }}>
+                {availableFields.map(field => (
+                  <FormControlLabel
+                    key={field}
+                    control={
+                      <Checkbox
+                        checked={(visualizationConfig.tooltipFields || []).includes(field)}
+                        onChange={(e) => {
+                          const tooltipFields = visualizationConfig.tooltipFields || [];
+                          if (e.target.checked) {
+                            handleConfigChange('tooltipFields', [...tooltipFields, field]);
+                          } else {
+                            handleConfigChange('tooltipFields', tooltipFields.filter(f => f !== field));
+                          }
+                        }}
+                        size="small"
+                      />
+                    }
+                    label={field}
+                  />
+                ))}
+              </Box>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={visualizationConfig.showTooltip !== false}
+                    onChange={(e) => handleConfigChange('showTooltip', e.target.checked)}
+                  />
+                }
+                label="Activer les infobulles"
+              />
+            </Grid>
+          </Grid>
+        )}
+        
+        {message && (
+          <Box sx={{ mt: 2 }}>
+            <Alert
+              severity={message.type}
+              onClose={() => setMessage(null)}
+            >
+              {message.text}
+            </Alert>
+          </Box>
+        )}
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={onClose} variant="outlined">
+          Annuler
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={applyChanges}
+          disabled={isProcessing}
+          startIcon={isProcessing ? <CircularProgress size={20} /> : <FormatPaintIcon />}
         >
-          <FiX />
-        </button>
-      </div>
-      
-      <div className="flex-grow overflow-y-auto p-3">
-        {/* Nom de la couche */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Nom de la couche</label>
-          <input
-            type="text"
-            value={layerName}
-            onChange={(e) => setLayerName(e.target.value)}
-            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-          />
-        </div>
-        
-        {/* Type de visualisation */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Type de visualisation</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {getAvailableVisualizations().map(vizType => (
-              <button
-                key={vizType.id}
-                className={`p-2 flex flex-col items-center justify-center rounded ${
-                  visualizationConfig.visualizationType === vizType.id
-                    ? 'bg-slate-200 dark:bg-slate-600 font-medium'
-                    : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'
-                }`}
-                onClick={() => handleConfigChange('visualizationType', vizType.id)}
-              >
-                {vizType.icon}
-                <span className="text-xs mt-1">{vizType.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Opacité */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">
-            Opacité: {(visualizationConfig.opacity || 0.8).toFixed(2)}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={visualizationConfig.opacity || 0.8}
-            onChange={(e) => handleConfigChange('opacity', parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
-            <span>Transparent</span>
-            <span>Opaque</span>
-          </div>
-        </div>
-        
-        {/* Couleur */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Couleur</h4>
-          
-          {/* Champ de couleur */}
-          <div className="mb-2">
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-              Variable de couleur
-            </label>
-            <select
-              value={visualizationConfig.colorField || ''}
-              onChange={(e) => handleConfigChange('colorField', e.target.value)}
-              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-            >
-              <option value="">Couleur unique</option>
-              <optgroup label="Variables numériques">
-                {numericFields.map(field => (
-                  <option key={field} value={field}>{field}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Variables catégorielles">
-                {categoricalFields.map(field => (
-                  <option key={field} value={field}>{field}</option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
-          
-          {/* Échelle de couleur */}
-          {visualizationConfig.colorField && (
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Échelle de couleur
-              </label>
-              <select
-                value={visualizationConfig.colorScale || 'sequential'}
-                onChange={(e) => handleConfigChange('colorScale', e.target.value)}
-                className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-              >
-                <option value="sequential">Séquentielle</option>
-                <option value="diverging">Divergente</option>
-                <option value="categorical">Catégorielle</option>
-              </select>
-            </div>
-          )}
-          
-          {/* Méthode de classification */}
-          {visualizationConfig.colorField && numericFields.includes(visualizationConfig.colorField) && (
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Classification
-              </label>
-              <select
-                value={visualizationConfig.classificationMethod || 'quantile'}
-                onChange={(e) => handleConfigChange('classificationMethod', e.target.value)}
-                className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-              >
-                <option value="quantile">Quantiles</option>
-                <option value="equal">Intervalles égaux</option>
-                <option value="jenks">Natural Breaks (Jenks)</option>
-              </select>
-            </div>
-          )}
-          
-          <div className="mb-2">
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-              {visualizationConfig.colorField ? 'Palette de couleurs' : 'Couleur'}
-            </label>
-            <ColorPicker
-              initialValue={visualizationConfig.color}
-              onChange={(color) => handleConfigChange('color', color)}
-            />
-          </div>
-          
-          {/* Inverser l'échelle */}
-          {visualizationConfig.colorField && (
-            <div className="flex items-center mt-2">
-              <input
-                type="checkbox"
-                id="reverseColorScale"
-                checked={visualizationConfig.reverseColorScale || false}
-                onChange={(e) => handleConfigChange('reverseColorScale', e.target.checked)}
-                className="mr-2"
-              />
-              <label htmlFor="reverseColorScale" className="text-xs text-slate-500 dark:text-slate-400">
-                Inverser l'échelle de couleurs
-              </label>
-            </div>
-          )}
-        </div>
-        
-        {/* Taille */}
-        {['point', 'scatterplot', 'icon', 'text'].includes(layer.type) && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Taille</h4>
-            
-            {/* Champ de taille */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Variable de taille
-              </label>
-              <select
-                value={visualizationConfig.sizeField || ''}
-                onChange={(e) => handleConfigChange('sizeField', e.target.value)}
-                className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-              >
-                <option value="">Taille fixe</option>
-                {numericFields.map(field => (
-                  <option key={field} value={field}>{field}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Taille des symboles */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                {visualizationConfig.sizeField ? 'Taille maximale' : 'Taille'}: {visualizationConfig.radius || 5}
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={50}
-                value={visualizationConfig.radius || 5}
-                onChange={(e) => handleConfigChange('radius', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-            
-            {visualizationConfig.sizeField && (
-              <div className="mb-2">
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                  Facteur d'échelle: {visualizationConfig.sizeScale || 1}
-                </label>
-                <input
-                  type="range"
-                  min={0.1}
-                  max={10}
-                  step={0.1}
-                  value={visualizationConfig.sizeScale || 1}
-                  onChange={(e) => handleConfigChange('sizeScale', parseFloat(e.target.value))}
-                  className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-                />
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Extrusion 3D */}
-        {['3d', 'hexagon', 'grid'].includes(layer.type) && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Élévation 3D</h4>
-            
-            {/* Champ d'élévation */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Variable d'élévation
-              </label>
-              <select
-                value={visualizationConfig.heightField || ''}
-                onChange={(e) => handleConfigChange('heightField', e.target.value)}
-                className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
-              >
-                <option value="">Élévation fixe</option>
-                {numericFields.map(field => (
-                  <option key={field} value={field}>{field}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Échelle d'élévation */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Échelle d'élévation: {visualizationConfig.elevationScale || 1}
-              </label>
-              <input
-                type="range"
-                min={0.1}
-                max={10}
-                step={0.1}
-                value={visualizationConfig.elevationScale || 1}
-                onChange={(e) => handleConfigChange('elevationScale', parseFloat(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-            
-            {/* Extrusion */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="extruded"
-                checked={visualizationConfig.extruded !== false}
-                onChange={(e) => handleConfigChange('extruded', e.target.checked)}
-                className="mr-2"
-              />
-              <label htmlFor="extruded" className="text-xs text-slate-500 dark:text-slate-400">
-                Activer l'extrusion 3D
-              </label>
-            </div>
-          </div>
-        )}
-        
-        {/* Agrégation */}
-        {['cluster', 'hexagon', 'grid'].includes(layer.type) && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Agrégation</h4>
-            
-            {/* Taille des cellules */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Taille des cellules (m): {visualizationConfig.cellSize || 1000}
-              </label>
-              <input
-                type="range"
-                min={100}
-                max={10000}
-                step={100}
-                value={visualizationConfig.cellSize || 1000}
-                onChange={(e) => handleConfigChange('cellSize', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-            
-            {/* Couverture */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Couverture: {visualizationConfig.coverage || 0.8}
-              </label>
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={visualizationConfig.coverage || 0.8}
-                onChange={(e) => handleConfigChange('coverage', parseFloat(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Options de heatmap */}
-        {layer.type === 'heatmap' && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Options de carte de chaleur</h4>
-            
-            {/* Rayon */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Rayon (pixels): {visualizationConfig.radius || 30}
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={100}
-                value={visualizationConfig.radius || 30}
-                onChange={(e) => handleConfigChange('radius', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-            
-            {/* Intensité */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Intensité: {visualizationConfig.intensity || 1}
-              </label>
-              <input
-                type="range"
-                min={0.1}
-                max={5}
-                step={0.1}
-                value={visualizationConfig.intensity || 1}
-                onChange={(e) => handleConfigChange('intensity', parseFloat(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Options de ligne */}
-        {layer.type === 'line' && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Options de ligne</h4>
-            
-            {/* Largeur de ligne */}
-            <div className="mb-2">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Largeur (pixels): {visualizationConfig.lineWidth || 1}
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={20}
-                value={visualizationConfig.lineWidth || 1}
-                onChange={(e) => handleConfigChange('lineWidth', parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Contour et bordure */}
-        {['choropleth', 'polygon'].includes(layer.type) && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Contour</h4>
-            
-            <div className="flex items-center mb-2">
-              <input
-                type="checkbox"
-                id="stroked"
-                checked={visualizationConfig.stroked !== false}
-                onChange={(e) => handleConfigChange('stroked', e.target.checked)}
-                className="mr-2"
-              />
-              <label htmlFor="stroked" className="text-xs text-slate-500 dark:text-slate-400">
-                Afficher les contours
-              </label>
-            </div>
-            
-            {visualizationConfig.stroked !== false && (
-              <div className="mb-2">
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                  Largeur du contour: {visualizationConfig.lineWidth || 1}
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={visualizationConfig.lineWidth || 1}
-                  onChange={(e) => handleConfigChange('lineWidth', parseInt(e.target.value))}
-                  className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-                />
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Animation temporelle */}
-        {/* Infobulle et étiquettes */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Infobulle</h4>
-          
-          {/* Champs à afficher dans l'infobulle */}
-          <div className="mb-2">
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-              Champs à afficher
-            </label>
-            <select
-              multiple
-              value={visualizationConfig.tooltipFields || []}
-              onChange={(e) => {
-                const selected = Array.from(e.target.selectedOptions, option => option.value);
-                handleConfigChange('tooltipFields', selected);
-              }}
-              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 h-24"
-            >
-              {availableFields.map(field => (
-                <option key={field} value={field}>{field}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Maintenez Ctrl/Cmd pour sélectionner plusieurs champs
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      {/* Actions en bas */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-        <div className="flex justify-between">
-          <button
-            onClick={() => setPreviewMode(!previewMode)}
-            className="py-2 px-3 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center"
-          >
-            <FiEye className="mr-1.5" />
-            {previewMode ? 'Éditer' : 'Aperçu'}
-          </button>
-          
-          <div className="flex space-x-2">
-            <button
-              onClick={onClose}
-              className="py-2 px-4 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              Annuler
-            </button>
-            
-            <button
-              onClick={applyChanges}
-              className="py-2 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
-            >
-              Appliquer
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+          {isProcessing ? 'Application...' : 'Appliquer'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 

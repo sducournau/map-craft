@@ -1,365 +1,403 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Paper,
+  Typography,
+  Box,
+  IconButton,
+  Collapse,
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Tooltip,
+  Fade,
+  useTheme
+} from '@mui/material';
+import { styled } from '@mui/material/styles';
+import LegendIcon from '@mui/icons-material/Legend';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import LayersIcon from '@mui/icons-material/Layers';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import useLayerManager from '../../hooks/useLayerManager.js';
 
+// Styled components
+const LegendContainer = styled(Paper)(({ theme }) => ({
+  position: 'absolute',
+  bottom: 16,
+  left: 16,
+  maxWidth: 300,
+  maxHeight: 'calc(100vh - 200px)',
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+  zIndex: 10,
+  transition: theme.transitions.create(['width', 'height'], {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.shorter,
+  }),
+}));
+
+const LegendHeader = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: theme.spacing(1, 2),
+  cursor: 'pointer',
+}));
+
+const LegendContent = styled(Box)(({ theme }) => ({
+  overflow: 'auto',
+  padding: theme.spacing(0, 2, 2, 2),
+  flexGrow: 1,
+}));
+
+const ColorScale = styled(Box)(({ gradient, theme }) => ({
+  height: 12,
+  width: '100%',
+  marginTop: theme.spacing(0.5),
+  marginBottom: theme.spacing(0.5),
+  borderRadius: 3,
+  background: gradient,
+}));
+
+const ColorDot = styled(Box)(({ color, theme }) => ({
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  backgroundColor: color,
+  display: 'inline-block',
+  marginRight: theme.spacing(1.5),
+}));
+
+const ColorBar = styled(Box)(({ color, theme }) => ({
+  width: 12,
+  height: 6,
+  backgroundColor: color,
+  display: 'inline-block',
+  marginRight: theme.spacing(1.5),
+}));
+
 const MapLegend = () => {
-  const { 
-    layers, 
-    visibleLayers, 
-    toggleLayerVisibility,
-    moveLayerUp,
-    moveLayerDown
-  } = useLayerManager();
-  
+  const theme = useTheme();
+  const { layers, visibleLayers, toggleLayerVisibility } = useLayerManager();
   const [collapsed, setCollapsed] = useState(false);
   const [legendItems, setLegendItems] = useState([]);
-  
+
+  // Update legend items when visible layers change
   useEffect(() => {
-    // Initialize Materialize components
-    if (typeof window !== 'undefined') {
-      const M = require('materialize-css');
-      M.Tooltip.init(document.querySelectorAll('.tooltipped'), {});
-    }
+    // Filter visible layers that have style information
+    const visibleLayerObjects = layers
+      .filter(layer => visibleLayers.includes(layer.id))
+      .filter(layer => layer.style); // Only include layers with style information
     
-    // Create legend items from visible layers
-    const visibleLayerObjects = layers.filter(layer => visibleLayers.includes(layer.id));
     setLegendItems(visibleLayerObjects);
   }, [layers, visibleLayers]);
-  
-  // If no visible layers, don't show the legend
+
+  // Toggle legend collapse
+  const toggleCollapse = () => {
+    setCollapsed(!collapsed);
+  };
+
+  // If no visible layers with style, don't show the legend
   if (legendItems.length === 0) {
     return null;
   }
-  
-  return (
-    <div className={`map-legend ${collapsed ? 'collapsed' : ''}`}>
-      <div className="legend-header" onClick={() => setCollapsed(!collapsed)}>
-        <h6 className="legend-title">Légende</h6>
-        <button className="btn-flat legend-toggle">
-          <i className="material-icons">
-            {collapsed ? 'expand_more' : 'expand_less'}
-          </i>
-        </button>
-      </div>
-      
-      {!collapsed && (
-        <div className="legend-content">
-          {legendItems.map(item => (
-            <div key={item.id} className="legend-item">
-              <div className="legend-item-header">
-                <div className="legend-symbol">
-                  {renderLayerSymbol(item.type, item.style)}
-                </div>
-                <span className="legend-label truncate">{item.title || item.id}</span>
-                
-                <div className="legend-actions">
-                  <button 
-                    className="btn-flat btn-small transparent tooltipped"
-                    data-position="left"
-                    data-tooltip={visibleLayers.includes(item.id) ? "Masquer" : "Afficher"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleLayerVisibility(item.id);
-                    }}
-                  >
-                    <i className="material-icons tiny">
-                      {visibleLayers.includes(item.id) ? 'visibility' : 'visibility_off'}
-                    </i>
-                  </button>
-                </div>
-              </div>
-              
-              {renderLegendDetails(item)}
-            </div>
-          ))}
-        </div>
-      )}
-      
-      <style jsx>{`
-        .map-legend {
-          position: absolute;
-          bottom: 20px;
-          left: 20px;
-          width: 250px;
-          max-height: 50vh;
-          background-color: white;
-          border-radius: 4px;
-          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-          z-index: 10;
-          overflow: hidden;
-          transition: all 0.3s ease;
-        }
-        
-        .map-legend.collapsed {
-          max-height: 40px;
-        }
-        
-        .legend-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 12px;
-          background-color: #f5f5f5;
-          cursor: pointer;
-          border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .legend-title {
-          margin: 0;
-          font-size: 14px;
-        }
-        
-        .legend-toggle {
-          padding: 0;
-          margin: 0;
-        }
-        
-        .legend-content {
-          max-height: calc(50vh - 40px);
-          overflow-y: auto;
-          padding: 8px;
-        }
-        
-        .legend-item {
-          margin-bottom: 10px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .legend-item:last-child {
-          margin-bottom: 0;
-          padding-bottom: 0;
-          border-bottom: none;
-        }
-        
-        .legend-item-header {
-          display: flex;
-          align-items: center;
-          margin-bottom: 5px;
-        }
-        
-        .legend-symbol {
-          width: 20px;
-          height: 20px;
-          margin-right: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .legend-label {
-          flex-grow: 1;
-          font-size: 13px;
-          font-weight: 500;
-          max-width: 170px;
-        }
-        
-        .legend-actions {
-          display: flex;
-        }
-        
-        .legend-color-scale {
-          height: 8px;
-          border-radius: 4px;
-          margin: 5px 0;
-          overflow: hidden;
-        }
-        
-        .legend-scale-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 10px;
-          color: #757575;
-        }
-      `}</style>
-    </div>
-  );
-};
 
-// Helper function to render an appropriate symbol for the layer type
-function renderLayerSymbol(type, style) {
-  switch (type) {
-    case 'point':
-      return (
-        <div
-          style={{
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            backgroundColor: rgbToHex(style?.color || [33, 113, 181]),
-          }}
-        ></div>
-      );
-      
-    case 'choropleth':
-      return (
-        <div
-          style={{
-            width: '12px',
-            height: '12px',
-            backgroundColor: rgbToHex(style?.color || [158, 202, 225]),
-            border: style?.stroked ? '1px solid #000' : 'none',
-          }}
-        ></div>
-      );
-      
-    case 'heatmap':
-      return (
-        <div
-          style={{
-            width: '16px',
-            height: '8px',
-            background: 'linear-gradient(to right, blue, purple, red)',
-            borderRadius: '2px',
-          }}
-        ></div>
-      );
-      
-    case 'line':
-      return (
-        <div
-          style={{
-            width: '16px',
-            height: '2px',
-            backgroundColor: rgbToHex(style?.color || [106, 137, 204]),
-            marginTop: '8px',
-          }}
-        ></div>
-      );
-      
-    case '3d':
-      return (
-        <div style={{ position: 'relative' }}>
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
-              backgroundColor: rgbToHex(style?.color || [65, 182, 196]),
-              position: 'absolute',
-              top: '2px',
-              left: '2px',
-            }}
-          ></div>
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
-              backgroundColor: rgbToHex(style?.color || [65, 182, 196], 0.7),
-              position: 'absolute',
-              top: '0',
-              left: '0',
-            }}
-          ></div>
-        </div>
-      );
-      
-    default:
-      return (
-        <i className="material-icons tiny">layers</i>
-      );
-  }
-}
+  // Render color scale
+  const renderColorScale = (style) => {
+    if (!style) return null;
 
-// Helper function to render details specific to the layer type
-function renderLegendDetails(layer) {
-  const { type, style } = layer;
-  
-  // Show color scale for layers with a color field
-  if (style && style.colorField) {
-    const startColor = style.colorRange ? 
-      rgbToHex(style.colorRange[0]) : 
-      '#f5f5f5';
+    // For fixed color
+    if (!style.colorField && style.color) {
+      const color = Array.isArray(style.color)
+        ? `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity || 1})`
+        : style.color;
       
-    const endColor = style.colorRange ? 
-      rgbToHex(style.colorRange[style.colorRange.length - 1]) : 
-      '#0d47a1';
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', my: 0.5 }}>
+          <ColorDot color={color} />
+          <Typography variant="caption">Couleur unique</Typography>
+        </Box>
+      );
+    }
+
+    // For color ranges
+    if (style.colorField && style.colorRange) {
+      const gradient = `linear-gradient(to right, ${style.colorRange.map(color => 
+        `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${style.opacity || 1})`
+      ).join(', ')})`;
+
+      return (
+        <Box sx={{ my: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+              {style.colorField}
+            </Typography>
+            {style.classificationMethod && (
+              <Tooltip title={`Classification: ${getClassificationMethodName(style.classificationMethod)}`}>
+                <InfoOutlinedIcon fontSize="inherit" sx={{ ml: 1, color: 'text.secondary', cursor: 'help' }} />
+              </Tooltip>
+            )}
+          </Box>
+          <ColorScale gradient={gradient} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+            <Typography variant="caption">Min</Typography>
+            <Typography variant="caption">Max</Typography>
+          </Box>
+        </Box>
+      );
+    }
+
+    return null;
+  };
+
+  // Get classification method display name
+  const getClassificationMethodName = (method) => {
+    switch (method) {
+      case 'quantile':
+        return 'Quantiles';
+      case 'equal':
+        return 'Intervalles égaux';
+      case 'jenks':
+        return 'Natural Breaks (Jenks)';
+      default:
+        return method;
+    }
+  };
+
+  // Render size scale
+  const renderSizeScale = (style) => {
+    if (!style || !style.sizeField) return null;
     
     return (
-      <div className="legend-details">
-        <div 
-          className="legend-color-scale"
-          style={{
-            background: `linear-gradient(to right, ${startColor}, ${endColor})`,
-          }}
-        ></div>
-        <div className="legend-scale-labels">
-          <span>Min</span>
-          <span>{style.colorField}</span>
-          <span>Max</span>
-        </div>
-      </div>
-    );
-  }
-  
-  // For heatmaps
-  if (type === 'heatmap') {
-    return (
-      <div className="legend-details">
-        <div 
-          className="legend-color-scale"
-          style={{
-            background: 'linear-gradient(to right, rgba(0,0,255,0.5), rgba(128,0,128,0.8), rgba(255,0,0,1))',
-          }}
-        ></div>
-        <div className="legend-scale-labels">
-          <span>Faible</span>
-          <span>Densité</span>
-          <span>Élevée</span>
-        </div>
-      </div>
-    );
-  }
-  
-  // For size-based visualizations
-  if (style && style.sizeField) {
-    return (
-      <div className="legend-details">
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', margin: '5px 0' }}>
-          <div
-            style={{
-              width: '6px',
-              height: '6px',
+      <Box sx={{ my: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 500, display: 'block', mb: 0.5 }}>
+          Taille: {style.sizeField}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+          <Box
+            sx={{
+              width: 6,
+              height: 6,
               borderRadius: '50%',
-              backgroundColor: rgbToHex(style.color || [33, 113, 181]),
+              bgcolor: 'text.secondary',
             }}
-          ></div>
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
+          />
+          <Box
+            sx={{
+              width: 10,
+              height: 10,
               borderRadius: '50%',
-              backgroundColor: rgbToHex(style.color || [33, 113, 181]),
+              bgcolor: 'text.secondary',
             }}
-          ></div>
-          <div
-            style={{
-              width: '14px',
-              height: '14px',
+          />
+          <Box
+            sx={{
+              width: 14,
+              height: 14,
               borderRadius: '50%',
-              backgroundColor: rgbToHex(style.color || [33, 113, 181]),
+              bgcolor: 'text.secondary',
             }}
-          ></div>
-        </div>
-        <div className="legend-scale-labels">
-          <span>Petit</span>
-          <span>{style.sizeField}</span>
-          <span>Grand</span>
-        </div>
-      </div>
+          />
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'space-between', ml: 1 }}>
+            <Typography variant="caption">Min</Typography>
+            <Typography variant="caption">Max</Typography>
+          </Box>
+        </Box>
+      </Box>
     );
-  }
-  
-  return null;
-}
+  };
 
-// Helper function to convert RGB array to hex color
-function rgbToHex(rgb, opacity = 1) {
-  if (!rgb || !Array.isArray(rgb)) return '#000000';
-  
-  const r = rgb[0] || 0;
-  const g = rgb[1] || 0;
-  const b = rgb[2] || 0;
-  
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
+  // Render 3D scale
+  const render3DScale = (style) => {
+    if (!style || !style.extruded || !style.heightField) return null;
+    
+    return (
+      <Box sx={{ my: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 500, display: 'block', mb: 0.5 }}>
+          Hauteur 3D: {style.heightField}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+          <Box
+            sx={{
+              width: 8,
+              height: 4,
+              bgcolor: 'text.secondary',
+            }}
+          />
+          <Box
+            sx={{
+              width: 8,
+              height: 8,
+              bgcolor: 'text.secondary',
+            }}
+          />
+          <Box
+            sx={{
+              width: 8,
+              height: 12,
+              bgcolor: 'text.secondary',
+            }}
+          />
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'space-between', ml: 1 }}>
+            <Typography variant="caption">Min</Typography>
+            <Typography variant="caption">Max</Typography>
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
+  // Render type icon
+  const renderTypeIcon = (type, style) => {
+    switch (type) {
+      case 'point':
+        return <ColorDot color={rgbToColor(style?.color, style?.opacity)} />;
+      case 'choropleth':
+        return <Box 
+                sx={{ 
+                  width: 14, 
+                  height: 14, 
+                  backgroundColor: rgbToColor(style?.color, style?.opacity),
+                  border: style?.stroked ? `1px solid ${rgbToColor(style?.lineColor || [0, 0, 0])}` : 'none',
+                  borderRadius: '2px',
+                  mr: 1.5
+                }} 
+              />;
+      case 'heatmap':
+        return <Box 
+                sx={{ 
+                  width: 14, 
+                  height: 6, 
+                  background: style?.colorRange ? 
+                    `linear-gradient(to right, ${style.colorRange.map(color => 
+                      rgbToColor(color, style.opacity)
+                    ).join(', ')})` : 
+                    rgbToColor([255, 0, 0], style?.opacity),
+                  borderRadius: '2px',
+                  mr: 1.5
+                }} 
+              />;
+      case 'line':
+        return <ColorBar color={rgbToColor(style?.color, style?.opacity)} />;
+      case '3d':
+        return <Box sx={{ position: 'relative', mr: 1.5 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    backgroundColor: rgbToColor(style?.color, (style?.opacity || 0.8) * 0.7),
+                    position: 'absolute',
+                    top: 2,
+                    left: 2,
+                  }}
+                />
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    backgroundColor: rgbToColor(style?.color, style?.opacity),
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    border: style?.wireframe ? `1px solid ${theme.palette.common.white}` : 'none',
+                  }}
+                />
+              </Box>;
+      default:
+        return <LayersIcon fontSize="small" sx={{ mr: 1 }} />;
+    }
+  };
+
+  // Helper to convert RGB array to color string
+  const rgbToColor = (rgb, opacity = 1) => {
+    if (!rgb || !Array.isArray(rgb)) return 'rgba(100, 100, 100, 1)';
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity || 1})`;
+  };
+
+  return (
+    <Fade in={true}>
+      <LegendContainer elevation={3}>
+        <LegendHeader onClick={toggleCollapse}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <LegendIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+            <Typography variant="subtitle2">Légende</Typography>
+          </Box>
+          <IconButton
+            size="small"
+            aria-label={collapsed ? "Expand" : "Collapse"}
+            sx={{ p: 0.5 }}
+          >
+            {collapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+          </IconButton>
+        </LegendHeader>
+        
+        <Divider />
+        
+        <Collapse in={!collapsed} timeout="auto">
+          <LegendContent>
+            <List dense disablePadding>
+              {legendItems.map((layer) => (
+                <React.Fragment key={layer.id}>
+                  <ListItem 
+                    sx={{ 
+                      px: 0, 
+                      py: 0.75,
+                      '&:not(:last-child)': {
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                      },
+                    }}
+                    secondaryAction={
+                      <IconButton 
+                        edge="end" 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLayerVisibility(layer.id);
+                        }}
+                      >
+                        {visibleLayers.includes(layer.id) ? 
+                          <VisibilityIcon fontSize="small" /> : 
+                          <VisibilityOffIcon fontSize="small" />
+                        }
+                      </IconButton>
+                    }
+                  >
+                    <ListItemIcon sx={{ minWidth: 'auto', mr: 1 }}>
+                      {renderTypeIcon(layer.type, layer.style)}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={layer.title || layer.id}
+                      primaryTypographyProps={{ 
+                        variant: 'body2', 
+                        fontWeight: 500,
+                        noWrap: true 
+                      }}
+                    />
+                  </ListItem>
+                  
+                  <Box sx={{ pl: 3.5, pb: 1, pt: 0.5 }}>
+                    {/* Color scale */}
+                    {renderColorScale(layer.style)}
+                    
+                    {/* Size scale */}
+                    {renderSizeScale(layer.style)}
+                    
+                    {/* 3D scale */}
+                    {render3DScale(layer.style)}
+                  </Box>
+                </React.Fragment>
+              ))}
+            </List>
+          </LegendContent>
+        </Collapse>
+      </LegendContainer>
+    </Fade>
+  );
+};
 
 export default MapLegend;

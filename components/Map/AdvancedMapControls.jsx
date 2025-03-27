@@ -1,36 +1,77 @@
 import React, { useState } from 'react';
 import { 
-  FiZoomIn, 
-  FiZoomOut, 
-  FiCompass, 
-  FiHome, 
-  FiList, 
-  FiRotateCcw, 
-  FiRotateCw,
-  FiMaximize,
-  FiChevronsUp,
-  FiChevronsDown,
-  FiLayers,
-  FiMapPin,
-  FiPlus,
-  FiMinus,
-  FiMove,
-  FiSliders
-} from 'react-icons/fi';
+  Box, 
+  Paper, 
+  IconButton, 
+  Tooltip, 
+  Divider,
+  Fade,
+  Zoom,
+  Collapse,
+  Typography,
+  Slider,
+  ToggleButton,
+  ToggleButtonGroup
+} from '@mui/material';
+import { styled, useTheme } from '@mui/material/styles';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import CompassIcon from '@mui/icons-material/Explore';
+import HomeIcon from '@mui/icons-material/Home';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import TuneIcon from '@mui/icons-material/Tune';
+import MapIcon from '@mui/icons-material/Map';
+import TerrainIcon from '@mui/icons-material/Terrain';
+import GridOnIcon from '@mui/icons-material/GridOn';
 import useMapStore from '../../hooks/useMapState.js';
 
+// Styled components
+const ControlPaper = styled(Paper)(({ theme }) => ({
+  borderRadius: theme.shape.borderRadius,
+  overflow: 'hidden',
+  boxShadow: theme.shadows[4],
+}));
+
+const ControlButton = styled(IconButton)(({ theme }) => ({
+  borderRadius: 0,
+  padding: theme.spacing(1.5),
+  color: theme.palette.text.primary,
+}));
+
+const InfoBox = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(1.5),
+  backgroundColor: theme.palette.background.paper,
+  color: theme.palette.text.secondary,
+  borderRadius: theme.shape.borderRadius,
+  boxShadow: theme.shadows[4],
+  fontSize: '0.75rem',
+  fontFamily: 'monospace',
+}));
+
 const AdvancedMapControls = () => {
+  const theme = useTheme();
   const { 
     viewState, 
     setViewState, 
     resetView,
     measureMode,
     setMeasureMode,
-    toggleFullscreen
+    toggleFullscreen,
+    isFullscreen,
   } = useMapStore();
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showTooltip, setShowTooltip] = useState('');
+  const [showControls, setShowControls] = useState({
+    rotation: false,
+    perspective: false,
+    measure: false,
+  });
   
   // Zoom in/out
   const zoomIn = () => {
@@ -69,10 +110,10 @@ const AdvancedMapControls = () => {
   };
   
   // Control the pitch
-  const adjustPitch = (delta) => {
+  const adjustPitch = (newPitch) => {
     setViewState({
       ...viewState,
-      pitch: Math.max(0, Math.min(60, viewState.pitch + delta)),
+      pitch: newPitch,
       transitionDuration: 300
     });
   };
@@ -82,239 +123,295 @@ const AdvancedMapControls = () => {
     resetView();
   };
   
-  // Toggle measurement tools
-  const toggleMeasurement = (mode) => {
-    setMeasureMode(measureMode === mode ? null : mode);
-  };
-  
-  // Helper for showing tooltips
-  const handleShowTooltip = (id) => {
-    setShowTooltip(id);
-  };
-  
-  const handleHideTooltip = () => {
-    setShowTooltip('');
-  };
-  
-  // Render tooltip
-  const renderTooltip = (id, text) => {
-    if (showTooltip !== id) return null;
+  // Toggle specific control panels
+  const toggleControlPanel = (panel) => {
+    setShowControls(prev => ({
+      ...prev,
+      [panel]: !prev[panel]
+    }));
     
-    return (
-      <div className="absolute right-12 top-1/2 -translate-y-1/2 bg-white dark:bg-slate-800 shadow-md rounded py-1 px-2 text-xs whitespace-nowrap">
-        {text}
-      </div>
-    );
+    // Auto expand when showing a panel
+    if (!showControls[panel] && !isExpanded) {
+      setIsExpanded(true);
+    }
+  };
+
+  // Toggle expanded controls
+  const handleExpandControls = () => {
+    setIsExpanded(!isExpanded);
+    
+    // Reset panels when collapsing
+    if (isExpanded) {
+      setShowControls({
+        rotation: false,
+        perspective: false,
+        measure: false,
+      });
+    }
   };
   
   return (
-    <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-10">
-      {/* Toggle controls expansion */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="bg-white dark:bg-slate-800 rounded-full h-10 w-10 flex items-center justify-center shadow-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors self-end"
-        aria-label={isExpanded ? "Réduire les contrôles" : "Étendre les contrôles"}
-      >
-        <FiSliders className="w-5 h-5" />
-      </button>
-      
-      {/* Main controls: always visible */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-2">
-        <button 
-          onClick={zoomIn}
-          className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-          aria-label="Zoom avant"
-          onMouseEnter={() => handleShowTooltip('zoomIn')}
-          onMouseLeave={handleHideTooltip}
-        >
-          <FiZoomIn className="w-5 h-5" />
-          {renderTooltip('zoomIn', 'Zoom avant')}
-        </button>
+    <Box sx={{ position: 'absolute', bottom: 16, right: 16, zIndex: 10 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+        {/* Information panel */}
+        <Fade in={isExpanded}>
+          <InfoBox sx={{ display: isExpanded ? 'block' : 'none', mb: 1 }}>
+            <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>Zoom:</Typography>
+              <Typography variant="caption">{viewState.zoom.toFixed(1)}</Typography>
+            </Box>
+            <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>Lat:</Typography>
+              <Typography variant="caption">{viewState.latitude.toFixed(4)}</Typography>
+            </Box>
+            <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>Lon:</Typography>
+              <Typography variant="caption">{viewState.longitude.toFixed(4)}</Typography>
+            </Box>
+            {viewState.bearing !== 0 && (
+              <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>Rot:</Typography>
+                <Typography variant="caption">{viewState.bearing.toFixed(1)}°</Typography>
+              </Box>
+            )}
+            {viewState.pitch !== 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>Inc:</Typography>
+                <Typography variant="caption">{viewState.pitch.toFixed(1)}°</Typography>
+              </Box>
+            )}
+          </InfoBox>
+        </Fade>
         
-        <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+        {/* Rotation controls */}
+        <Collapse in={showControls.rotation} sx={{ width: 'auto', alignSelf: 'flex-end' }}>
+          <ControlPaper elevation={4}>
+            <Box sx={{ p: 2, width: 200 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Rotation de la carte
+              </Typography>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value="rotate"
+                >
+                  <ToggleButton value="rotate">
+                    <RotateLeftIcon fontSize="small" />
+                  </ToggleButton>
+                  <ToggleButton value="reset" onClick={resetNorth}>
+                    <CompassIcon fontSize="small" />
+                  </ToggleButton>
+                  <ToggleButton value="rotateRight">
+                    <RotateRightIcon fontSize="small" />
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              
+              <Typography variant="caption" gutterBottom>
+                Angle: {viewState.bearing.toFixed(1)}°
+              </Typography>
+              
+              <Slider
+                size="small"
+                value={viewState.bearing}
+                min={0}
+                max={360}
+                step={15}
+                marks
+                valueLabelDisplay="auto"
+                onChange={(_, value) => {
+                  setViewState({
+                    ...viewState,
+                    bearing: value,
+                    transitionDuration: 300
+                  });
+                }}
+              />
+            </Box>
+          </ControlPaper>
+        </Collapse>
         
-        <button 
-          onClick={zoomOut}
-          className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-          aria-label="Zoom arrière"
-          onMouseEnter={() => handleShowTooltip('zoomOut')}
-          onMouseLeave={handleHideTooltip}
-        >
-          <FiZoomOut className="w-5 h-5" />
-          {renderTooltip('zoomOut', 'Zoom arrière')}
-        </button>
+        {/* Perspective controls */}
+        <Collapse in={showControls.perspective} sx={{ width: 'auto', alignSelf: 'flex-end' }}>
+          <ControlPaper elevation={4}>
+            <Box sx={{ p: 2, width: 200 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Inclinaison 3D
+              </Typography>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                <ToggleButtonGroup
+                  size="small"
+                  value={viewState.pitch > 0 ? 'perspective' : 'flat'}
+                  exclusive
+                  onChange={(_, value) => {
+                    if (value === 'flat') {
+                      adjustPitch(0);
+                    } else if (value === 'perspective') {
+                      adjustPitch(45);
+                    }
+                  }}
+                >
+                  <ToggleButton value="flat">
+                    <MapIcon fontSize="small" />
+                  </ToggleButton>
+                  <ToggleButton value="perspective">
+                    <TerrainIcon fontSize="small" />
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              
+              <Typography variant="caption" gutterBottom>
+                Inclinaison: {viewState.pitch.toFixed(1)}°
+              </Typography>
+              
+              <Slider
+                size="small"
+                value={viewState.pitch}
+                min={0}
+                max={60}
+                step={5}
+                marks
+                valueLabelDisplay="auto"
+                onChange={(_, value) => adjustPitch(value)}
+              />
+            </Box>
+          </ControlPaper>
+        </Collapse>
         
-        <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+        {/* Measurement tools */}
+        <Collapse in={showControls.measure} sx={{ width: 'auto', alignSelf: 'flex-end' }}>
+          <ControlPaper elevation={4}>
+            <Box sx={{ p: 2, width: 200 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Outils de mesure
+              </Typography>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                <ToggleButtonGroup
+                  size="small"
+                  value={measureMode}
+                  exclusive
+                  onChange={(_, value) => {
+                    if (value !== null) {
+                      setMeasureMode(value);
+                    }
+                  }}
+                >
+                  <ToggleButton value="distance">
+                    <TimelineIcon fontSize="small" />
+                  </ToggleButton>
+                  <ToggleButton value="area">
+                    <GridOnIcon fontSize="small" />
+                  </ToggleButton>
+                  <ToggleButton value="position">
+                    <MapIcon fontSize="small" />
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              
+              <Typography variant="caption">
+                {measureMode === 'distance' && 'Cliquez sur la carte pour mesurer une distance'}
+                {measureMode === 'area' && 'Cliquez sur la carte pour mesurer une surface'}
+                {measureMode === 'position' && 'Cliquez sur la carte pour obtenir des coordonnées'}
+                {!measureMode && 'Sélectionnez un outil de mesure'}
+              </Typography>
+            </Box>
+          </ControlPaper>
+        </Collapse>
         
-        <button 
-          onClick={resetNorth}
-          className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-          aria-label="Réinitialiser l'orientation"
-          onMouseEnter={() => handleShowTooltip('resetNorth')}
-          onMouseLeave={handleHideTooltip}
-        >
-          <FiCompass className="w-5 h-5" />
-          {renderTooltip('resetNorth', 'Réinitialiser la rotation')}
-        </button>
+        {/* Main controls button */}
+        <ControlPaper>
+          <Tooltip title="Afficher plus de contrôles" placement="left">
+            <ControlButton onClick={handleExpandControls}>
+              {isExpanded ? <MoreVertIcon /> : <TuneIcon />}
+            </ControlButton>
+          </Tooltip>
+        </ControlPaper>
         
-        {isExpanded && (
-          <>
-            <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+        {/* Main controls panel */}
+        <ControlPaper>
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Tooltip title="Zoom avant" placement="left">
+              <ControlButton onClick={zoomIn}>
+                <ZoomInIcon />
+              </ControlButton>
+            </Tooltip>
             
-            <button 
-              onClick={() => rotateMap(-45)}
-              className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-              aria-label="Rotation anti-horaire"
-              onMouseEnter={() => handleShowTooltip('rotateLeft')}
-              onMouseLeave={handleHideTooltip}
-            >
-              <FiRotateCcw className="w-5 h-5" />
-              {renderTooltip('rotateLeft', 'Rotation anti-horaire')}
-            </button>
+            <Divider />
             
-            <button 
-              onClick={() => rotateMap(45)}
-              className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-              aria-label="Rotation horaire"
-              onMouseEnter={() => handleShowTooltip('rotateRight')}
-              onMouseLeave={handleHideTooltip}
-            >
-              <FiRotateCw className="w-5 h-5" />
-              {renderTooltip('rotateRight', 'Rotation horaire')}
-            </button>
+            <Tooltip title="Zoom arrière" placement="left">
+              <ControlButton onClick={zoomOut}>
+                <ZoomOutIcon />
+              </ControlButton>
+            </Tooltip>
             
-            <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+            <Divider />
             
-            <button 
-              onClick={() => adjustPitch(15)}
-              className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-              aria-label="Augmenter l'inclinaison"
-              onMouseEnter={() => handleShowTooltip('pitchUp')}
-              onMouseLeave={handleHideTooltip}
-            >
-              <FiChevronsUp className="w-5 h-5" />
-              {renderTooltip('pitchUp', 'Augmenter l\'inclinaison')}
-            </button>
+            <Tooltip title="Réinitialiser le nord" placement="left">
+              <ControlButton onClick={resetNorth}>
+                <CompassIcon />
+              </ControlButton>
+            </Tooltip>
             
-            <button 
-              onClick={() => adjustPitch(-15)}
-              className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-              aria-label="Diminuer l'inclinaison"
-              onMouseEnter={() => handleShowTooltip('pitchDown')}
-              onMouseLeave={handleHideTooltip}
-            >
-              <FiChevronsDown className="w-5 h-5" />
-              {renderTooltip('pitchDown', 'Diminuer l\'inclinaison')}
-            </button>
+            {isExpanded && (
+              <>
+                <Divider />
+                
+                <Tooltip title="Rotation" placement="left">
+                  <ControlButton 
+                    onClick={() => toggleControlPanel('rotation')}
+                    color={showControls.rotation ? 'primary' : 'default'}
+                  >
+                    <RotateRightIcon />
+                  </ControlButton>
+                </Tooltip>
+                
+                <Divider />
+                
+                <Tooltip title="Vue 3D" placement="left">
+                  <ControlButton 
+                    onClick={() => toggleControlPanel('perspective')}
+                    color={showControls.perspective ? 'primary' : 'default'}
+                  >
+                    <ViewInArIcon />
+                  </ControlButton>
+                </Tooltip>
+                
+                <Divider />
+                
+                <Tooltip title="Outils de mesure" placement="left">
+                  <ControlButton 
+                    onClick={() => toggleControlPanel('measure')}
+                    color={showControls.measure ? 'primary' : 'default'}
+                  >
+                    <TimelineIcon />
+                  </ControlButton>
+                </Tooltip>
+                
+                <Divider />
+                
+                <Tooltip title="Plein écran" placement="left">
+                  <ControlButton onClick={toggleFullscreen}>
+                    {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                  </ControlButton>
+                </Tooltip>
+                
+                <Divider />
+              </>
+            )}
             
-            <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
-          </>
-        )}
-        
-        <button 
-          onClick={goToInitialView}
-          className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-          aria-label="Vue initiale"
-          onMouseEnter={() => handleShowTooltip('initialView')}
-          onMouseLeave={handleHideTooltip}
-        >
-          <FiHome className="w-5 h-5" />
-          {renderTooltip('initialView', 'Revenir à la vue initiale')}
-        </button>
-        
-        {isExpanded && (
-          <>
-            <div className="w-8 h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
-            
-            <button 
-              onClick={toggleFullscreen}
-              className="block w-8 h-8 my-1 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative"
-              aria-label="Plein écran"
-              onMouseEnter={() => handleShowTooltip('fullscreen')}
-              onMouseLeave={handleHideTooltip}
-            >
-              <FiMaximize className="w-5 h-5" />
-              {renderTooltip('fullscreen', 'Plein écran')}
-            </button>
-          </>
-        )}
-      </div>
-      
-      {/* Measurement tools */}
-      {isExpanded && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-2">
-          <button 
-            onClick={() => toggleMeasurement('distance')}
-            className={`block w-8 h-8 my-1 flex items-center justify-center rounded transition-colors relative ${
-              measureMode === 'distance' 
-                ? 'bg-slate-200 dark:bg-slate-600' 
-                : 'hover:bg-slate-100 dark:hover:bg-slate-700'
-            }`}
-            aria-label="Mesurer une distance"
-            onMouseEnter={() => handleShowTooltip('distance')}
-            onMouseLeave={handleHideTooltip}
-          >
-            <FiMove className="w-5 h-5" />
-            {renderTooltip('distance', 'Mesurer une distance')}
-          </button>
-          
-          <button 
-            onClick={() => toggleMeasurement('area')}
-            className={`block w-8 h-8 my-1 flex items-center justify-center rounded transition-colors relative ${
-              measureMode === 'area' 
-                ? 'bg-slate-200 dark:bg-slate-600' 
-                : 'hover:bg-slate-100 dark:hover:bg-slate-700'
-            }`}
-            aria-label="Mesurer une superficie"
-            onMouseEnter={() => handleShowTooltip('area')}
-            onMouseLeave={handleHideTooltip}
-          >
-            <FiLayers className="w-5 h-5" />
-            {renderTooltip('area', 'Mesurer une superficie')}
-          </button>
-          
-          <button 
-            onClick={() => toggleMeasurement('position')}
-            className={`block w-8 h-8 my-1 flex items-center justify-center rounded transition-colors relative ${
-              measureMode === 'position' 
-                ? 'bg-slate-200 dark:bg-slate-600' 
-                : 'hover:bg-slate-100 dark:hover:bg-slate-700'
-            }`}
-            aria-label="Obtenir des coordonnées"
-            onMouseEnter={() => handleShowTooltip('position')}
-            onMouseLeave={handleHideTooltip}
-          >
-            <FiMapPin className="w-5 h-5" />
-            {renderTooltip('position', 'Obtenir des coordonnées')}
-          </button>
-        </div>
-      )}
-      
-      {/* Map information */}
-      {isExpanded && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-2 text-xs font-mono">
-          <div className="px-1 py-0.5">
-            Zoom: {viewState.zoom.toFixed(1)}
-          </div>
-          <div className="px-1 py-0.5">
-            Lat: {viewState.latitude.toFixed(4)}
-          </div>
-          <div className="px-1 py-0.5">
-            Lon: {viewState.longitude.toFixed(4)}
-          </div>
-          {viewState.bearing !== 0 && (
-            <div className="px-1 py-0.5">
-              Rot: {viewState.bearing.toFixed(1)}°
-            </div>
-          )}
-          {viewState.pitch !== 0 && (
-            <div className="px-1 py-0.5">
-              Inc: {viewState.pitch.toFixed(1)}°
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            <Tooltip title="Vue initiale" placement="left">
+              <ControlButton onClick={goToInitialView}>
+                <HomeIcon />
+              </ControlButton>
+            </Tooltip>
+          </Box>
+        </ControlPaper>
+      </Box>
+    </Box>
   );
 };
 

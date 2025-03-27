@@ -1,37 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
-import { Box, CircularProgress } from '@mui/material';
+import { 
+  Box, 
+  CircularProgress, 
+  Backdrop, 
+  Snackbar, 
+  Alert,
+  LinearProgress
+} from '@mui/material';
 import useMapState from '../hooks/useMapState.js';
 import useDataState from '../hooks/useDataState.js';
+import useLayerManager from '../hooks/useLayerManager.js';
 import { generateSampleData } from '../utils/dataFormatters.js';
+import MainLayout from '../components/Layout/MainLayout';
 
 // Loading component
 const Loading = () => (
-  <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-    <CircularProgress />
-  </Box>
+  <Backdrop open={true} sx={{ zIndex: 9999 }}>
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center',
+        bgcolor: 'background.paper',
+        p: 4,
+        borderRadius: 2,
+        boxShadow: 6,
+        maxWidth: 400,
+      }}
+    >
+      <Box sx={{ width: '100%', mb: 2 }}>
+        <LinearProgress />
+      </Box>
+      <CircularProgress size={60} thickness={4} />
+      <Box sx={{ mt: 2, color: 'text.primary' }}>
+        Chargement de MapCraft...
+      </Box>
+    </Box>
+  </Backdrop>
 );
 
 // Dynamically import components with SSR disabled
 const DeckGLMap = dynamic(() => import('../components/Map/DeckGLMap'), {
   ssr: false,
-  loading: Loading,
+  loading: () => <Loading />,
 });
 
-const Sidebar = dynamic(() => import('../components/UI/Sidebar'), {
+const AdvancedMapControls = dynamic(() => import('../components/Map/AdvancedMapControls'), {
   ssr: false,
-  loading: () => <CircularProgress />,
 });
 
-const DataPanel = dynamic(() => import('../components/UI/DataPanel'), {
+const LayerSidebar = dynamic(() => import('../components/UI/LayerSidebar'), {
   ssr: false,
-  loading: () => <CircularProgress />,
-});
-
-const MapControls = dynamic(() => import('../components/Map/MapControls'), {
-  ssr: false,
-  loading: () => <CircularProgress />,
 });
 
 // Dynamic spatial analysis component
@@ -54,139 +75,147 @@ const ExportDialog = dynamic(() => import('../components/DataHandling/ExportDial
 
 export default function Home() {
   const { viewState, setViewState } = useMapState();
-  const { 
-    addData,
-    datasets,
-    visualizationType, 
-    setVisualizationType, 
-    classificationMethod, 
-    setClassificationMethod,
-    colorPalette,
-    setColorPalette,
-    opacity,
-    setOpacity,
-    radius,
-    setRadius,
-    layers
-  } = useDataState();
+  const { getVisualizationLayers } = useDataState();
+  const { activeLayers } = useLayerManager();
   
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [notification, setNotification] = useState(null);
+  
+  // Generate layers for deck.gl
+  const mapLayers = getVisualizationLayers();
   
   // Load sample data after initial render
   useEffect(() => {
     if (!isDataLoaded && typeof window !== 'undefined') {
+      const { addData } = useDataState.getState();
+      
       // Use setTimeout to ensure this happens after hydration
       const timer = setTimeout(() => {
-        const sampleData = generateSampleData('points', 100);
-        addData(sampleData, 'Sample Points');
-        setIsDataLoaded(true);
-      }, 100);
+        try {
+          // Generate sample points in France
+          const samplePoints = generateSampleData('points', 100);
+          addData(samplePoints, 'Points d\'exemple');
+          
+          // Also generate some polygons
+          const samplePolygons = generateSampleData('polygons', 15);
+          addData(samplePolygons, 'Zones d\'exemple');
+          
+          setIsDataLoaded(true);
+          setNotification({
+            type: 'success',
+            message: 'Données d\'exemple chargées avec succès'
+          });
+        } catch (error) {
+          console.error('Error loading sample data:', error);
+          setNotification({
+            type: 'error',
+            message: 'Erreur lors du chargement des données d\'exemple'
+          });
+        }
+      }, 1000);
       
       return () => clearTimeout(timer);
     }
-  }, [isDataLoaded, addData]);
+  }, [isDataLoaded]);
   
   // Handle imported data
   const handleDataImported = (newData) => {
-    addData(newData, 'Imported Data');
-    
-    // Adapt visualization type based on data
-    if (newData && newData.features && newData.features.length > 0) {
-      const firstFeature = newData.features[0];
-      const geometryType = firstFeature.geometry.type;
+    try {
+      const { addData } = useDataState.getState();
+      const dataName = 'Données importées';
       
-      if (geometryType === 'Point') {
-        setVisualizationType('points');
-      } else if (geometryType.includes('Polygon')) {
-        setVisualizationType('choropleth');
-      }
+      addData(newData, dataName);
+      
+      setNotification({
+        type: 'success',
+        message: `${dataName} importées avec succès`
+      });
+      
+      // Close the import dialog
+      setShowImport(false);
+    } catch (error) {
+      console.error('Error importing data:', error);
+      setNotification({
+        type: 'error',
+        message: `Erreur lors de l'importation: ${error.message}`
+      });
     }
-    
-    // Close the import dialog
-    setShowImport(false);
   };
   
-  // Handle showing spatial analysis
-  const handleShowAnalysis = () => {
-    setShowAnalysis(true);
-  };
-  
-  // Handle closing spatial analysis
-  const handleCloseAnalysis = () => {
-    setShowAnalysis(false);
-  };
-  
-  // Handle showing import dialog
-  const handleShowImport = () => {
-    setShowImport(true);
-  };
-  
-  // Handle showing export dialog
-  const handleShowExport = () => {
-    setShowExport(true);
+  // Close notification
+  const handleCloseNotification = () => {
+    setNotification(null);
   };
   
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <>
       <Head>
         <title>MapCraft - Éditeur Cartographique</title>
-        <meta name="description" content="Éditeur cartographique PWA avec deck.gl" />
+        <meta name="description" content="Éditeur cartographique avancé avec visualisation et analyse spatiale" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#1a202c" />
       </Head>
       
-      <Sidebar 
-        onImportData={handleShowImport}
-        onShowAnalysis={handleShowAnalysis}
-      />
-      
-      <Box sx={{ flexGrow: 1, position: 'relative', overflow: 'hidden' }}>
-        <DeckGLMap
-          layers={layers}
-          viewState={viewState}
-          onViewStateChange={evt => setViewState(evt.viewState)}
-        />
-        
-        <MapControls 
-          viewState={viewState}
-          setViewState={setViewState}
-        />
-        
-        <DataPanel 
-          visualizationType={visualizationType} 
-          setVisualizationType={setVisualizationType}
-          classificationMethod={classificationMethod}
-          setClassificationMethod={setClassificationMethod}
-          colorPalette={colorPalette}
-          setColorPalette={setColorPalette}
-          opacity={opacity}
-          setOpacity={setOpacity}
-          radius={radius}
-          setRadius={setRadius}
-        />
-        
-        {/* Show dialogs conditionally */}
-        {showAnalysis && (
-          <SpatialAnalysis onClose={handleCloseAnalysis} />
-        )}
-        
-        {showImport && (
-          <DataImport 
-            onDataImported={handleDataImported} 
-            onClose={() => setShowImport(false)} 
+      <MainLayout
+        sidebarContent={
+          <LayerSidebar 
+            onImportData={() => setShowImport(true)}
+            onShowAnalysis={() => setShowAnalysis(true)}
           />
-        )}
-        
-        {showExport && (
-          <ExportDialog 
-            onClose={() => setShowExport(false)} 
+        }
+        title="MapCraft Studio"
+      >
+        <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+          {/* Main Map */}
+          <DeckGLMap
+            layers={mapLayers}
+            viewState={viewState}
+            onViewStateChange={evt => setViewState(evt.viewState)}
           />
-        )}
-      </Box>
-    </Box>
+          
+          {/* Map Controls */}
+          <AdvancedMapControls />
+          
+          {/* Modals and Dialogs */}
+          {showAnalysis && (
+            <SpatialAnalysis onClose={() => setShowAnalysis(false)} />
+          )}
+          
+          {showImport && (
+            <DataImport 
+              onDataImported={handleDataImported} 
+              onClose={() => setShowImport(false)} 
+            />
+          )}
+          
+          {showExport && (
+            <ExportDialog 
+              onClose={() => setShowExport(false)} 
+            />
+          )}
+          
+          {/* Notifications */}
+          <Snackbar
+            open={!!notification}
+            autoHideDuration={6000}
+            onClose={handleCloseNotification}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          >
+            {notification && (
+              <Alert 
+                onClose={handleCloseNotification} 
+                severity={notification.type} 
+                variant="filled"
+                sx={{ width: '100%' }}
+              >
+                {notification.message}
+              </Alert>
+            )}
+          </Snackbar>
+        </Box>
+      </MainLayout>
+    </>
   );
 }
