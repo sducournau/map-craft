@@ -24,7 +24,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import HelpIcon from '@mui/icons-material/Help';
 import BrightnessMediumIcon from '@mui/icons-material/BrightnessMedium';
 import LanguageIcon from '@mui/icons-material/Language';
-import { useThemeStore } from '../../hooks/useThemeState';
+import { useThemeStore } from '@/hooks/useThemeState';
 
 // Drawer width
 const drawerWidth = 300;
@@ -42,7 +42,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
     }),
     ...(open && {
       width: `calc(100% - ${drawerWidth}px)`,
-      marginLeft: '0px', // Changed from ${drawerWidth}px to 0px
+      marginLeft: '0px',
       transition: theme.transitions.create(['margin', 'width'], {
         easing: theme.transitions.easing.easeOut,
         duration: theme.transitions.duration.enteringScreen,
@@ -103,7 +103,8 @@ const MainLayout = ({ children, sidebarContent, title = 'MapCraft' }) => {
       width: '100vw',
       overflow: 'hidden',
       flexDirection: 'column'
-    }}>
+    }}
+    className="main-layout-container">
       <AppBar 
         position="fixed" 
         sx={{ 
@@ -232,7 +233,8 @@ const MainLayout = ({ children, sidebarContent, title = 'MapCraft' }) => {
         </Toolbar>
       </AppBar>
       
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', marginTop: '64px', overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', marginTop: '64px', overflow: 'hidden' }}
+        className="main-layout-content">
         <Drawer
           sx={{
             width: drawerWidth,

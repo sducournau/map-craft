@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import { Map } from 'react-map-gl';
-import { Box, Paper, Typography, Fade } from '@mui/material';
+import { Box, Paper, Typography, Fade, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import styles from '../../styles/DeckGLMap.module.css';
 
@@ -53,13 +53,26 @@ const CustomTooltip = ({ hoveredObject, x, y }) => {
   );
 };
 
-function DeckGLMap({ layers, viewState, onViewStateChange }) {
+function DeckGLMap({ layers = [], viewState, onViewStateChange }) {
   const theme = useTheme();
   const [hoverInfo, setHoverInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Validate layers
+  useEffect(() => {
+    setIsLoading(false);
+    if (!Array.isArray(layers)) {
+      console.error("DeckGLMap: 'layers' prop must be an array");
+      setError("Invalid layers configuration");
+    } else {
+      setError(null);
+    }
+  }, [layers]);
   
   // Memoize deck.gl props to prevent unnecessary re-renders
   const deckProps = useMemo(() => ({
-    layers,
+    layers: Array.isArray(layers) ? layers : [],
     viewState,
     onViewStateChange,
     getTooltip: null, // We'll use our custom tooltip instead
@@ -76,7 +89,7 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
         setHoverInfo(null);
       }
     }
-  }), [layers, viewState, onViewStateChange, setHoverInfo]);
+  }), [layers, viewState, onViewStateChange]);
 
   // Select appropriate map style based on theme
   const mapStyle = useMemo(() => {
@@ -84,6 +97,34 @@ function DeckGLMap({ layers, viewState, onViewStateChange }) {
       ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
       : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
   }, [theme.palette.mode]);
+
+  // Clean up hover info when component unmounts
+  useEffect(() => {
+    return () => {
+      setHoverInfo(null);
+    };
+  }, []);
+
+  // Display loading state
+  if (isLoading) {
+    return (
+      <Box className={styles.mapWrapper} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Display error state
+  if (error) {
+    return (
+      <Box className={styles.mapWrapper} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Paper elevation={3} sx={{ p: 2, maxWidth: 400, textAlign: 'center' }}>
+          <Typography color="error" variant="h6">Map Error</Typography>
+          <Typography>{error}</Typography>
+        </Paper>
+      </Box>
+    );
+  }
 
   return (
     <Box 

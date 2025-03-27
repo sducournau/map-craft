@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid/non-secure';
 import * as turf from '@turf/turf';
+import {
+  ScatterplotLayer,
+  GeoJsonLayer,
+  SolidPolygonLayer,
+  LineLayer,
+  TextLayer,
+  IconLayer
+} from '@deck.gl/layers';
+import {
+  HeatmapLayer,
+  HexagonLayer,
+  GridLayer
+} from '@deck.gl/aggregation-layers';
 import { schemeBlues, schemeReds, schemeGreens, schemePurples, schemeViridis } from 'd3-scale-chromatic';
 
 // Store pour la gestion avancée des couches
@@ -67,8 +80,6 @@ const useLayerManager = create((set, get) => ({
     
     return id;
   },
-  
-  // Reste du code inchangé...
   
   // Supprimer une couche
   removeLayer: (layerId) => {
@@ -177,6 +188,7 @@ const useLayerManager = create((set, get) => ({
         layer.id === layerId
           ? {
               ...layer,
+              ...metadata, // Mise à jour directe des propriétés au niveau supérieur
               metadata: {
                 ...layer.metadata,
                 ...metadata
@@ -389,19 +401,19 @@ function getDefaultStyle(layerType) {
   const defaultColors = {
     choropleth: [158, 202, 225, 180],  // Bleu clair
     point: [33, 113, 181, 255],        // Bleu
-    heatmap: schemeViridis[9],         // Dégradé viridis
-    cluster: schemeBlues[9],           // Dégradé bleu
+    heatmap: schemeViridis,            // Dégradé viridis
+    cluster: schemeBlues,              // Dégradé bleu
     line: [106, 137, 204, 255],        // Bleu moyen
     polygon: [43, 140, 190, 180],      // Bleu-vert
     '3d': [65, 182, 196, 200],         // Turquoise
-    hexagon: schemeGreens[9],          // Dégradé vert
-    grid: schemeReds[9],               // Dégradé rouge
-    contour: schemeViridis[9],         // Dégradé viridis
+    hexagon: schemeGreens,             // Dégradé vert
+    grid: schemeReds,                  // Dégradé rouge
+    contour: schemeViridis,            // Dégradé viridis
     trips: [255, 140, 0, 220],         // Orange
-    h3: schemePurples[9],              // Dégradé violet
+    h3: schemePurples,                 // Dégradé violet
     text: [0, 0, 0, 255],              // Noir
     icon: [67, 67, 67, 255],           // Gris foncé
-    screenGrid: schemeReds[9],         // Dégradé rouge
+    screenGrid: schemeReds,            // Dégradé rouge
     terrain: [96, 125, 139, 255]       // Bleu-gris
   };
   
@@ -411,7 +423,7 @@ function getDefaultStyle(layerType) {
     color: defaultColors[layerType] || [100, 100, 100, 255],
     colorField: null,
     colorScale: 'sequential',
-    colorRange: schemeBlues[9],
+    colorRange: Array.isArray(defaultColors[layerType]) ? defaultColors[layerType] : schemeBlues,
     reverseColorScale: false,
     radius: 100,
     lineWidth: 1,
@@ -446,7 +458,6 @@ function getDefaultStyle(layerType) {
         ...baseStyle,
         radius: 30,
         intensity: 1,
-        colorRange: schemeViridis[9],
         threshold: 0.05
       };
       
@@ -466,8 +477,7 @@ function getDefaultStyle(layerType) {
         cellSize: 1000,
         coverage: 0.9,
         elevationScale: 1,
-        extruded: true,
-        colorRange: schemeGreens[9]
+        extruded: true
       };
       
     case '3d':
@@ -509,19 +519,176 @@ function getDefaultStyle(layerType) {
 
 // Générer une couche deck.gl à partir d'une configuration de couche
 function generateDeckGlLayer(layer) {
-  // Cette fonction devrait utiliser les informations de la couche
-  // pour générer l'objet deck.gl correspondant
+  if (!layer || !layer.data) {
+    return null;
+  }
   
-  // Note: Ceci est un squelette, l'implémentation réelle dépendrait 
-  // du code de visualisation de l'application
-  return {
-    id: layer.id,
-    type: layer.type,
-    data: layer.data,
-    style: layer.style,
-    // Dans une implémentation réelle, cet objet contiendrait
-    // les propriétés complètes d'une couche deck.gl
+  const { id, type, data, style = {} } = layer;
+  
+  // Propriétés communes
+  const commonProps = {
+    id: `layer-${id}`,
+    pickable: true,
+    opacity: style.opacity || 0.8,
+    visible: true,
+    autoHighlight: style.autoHighlight || false,
+    highlightColor: [255, 255, 255, 100]
   };
+  
+  // Fonction pour obtenir la couleur
+  const getColor = (d) => {
+    if (!style.colorField) {
+      // Couleur fixe
+      return style.color || [100, 100, 100, 255];
+    }
+    
+    // Obtenir la valeur du champ
+    const value = d.properties ? d.properties[style.colorField] : d[style.colorField];
+    
+    if (value === undefined || value === null) {
+      return style.color || [100, 100, 100, 255];
+    }
+    
+    // Couleur basée sur la valeur (implémentation simplifiée)
+    // Dans une implémentation réelle, on utiliserait une échelle de couleur
+    const min = 0; // À déterminer dynamiquement
+    const max = 100; // À déterminer dynamiquement
+    const normalizedValue = (value - min) / (max - min);
+    
+    // Couleur entre bleu et rouge
+    return [
+      Math.round(normalizedValue * 255), // R
+      50, // G
+      Math.round((1 - normalizedValue) * 255), // B
+      255  // Alpha
+    ];
+  };
+  
+  // Génération de la couche selon le type
+  switch (type) {
+    case 'point':
+      return new ScatterplotLayer({
+        ...commonProps,
+        data,
+        getPosition: d => d.geometry?.coordinates || [0, 0],
+        getRadius: style.radius || 5,
+        getFillColor: getColor,
+        stroked: style.stroked !== false,
+        lineWidthMinPixels: 1,
+        getLineColor: style.strokeColor || [0, 0, 0, 255],
+        getLineWidth: style.lineWidth || 1
+      });
+    
+    case 'choropleth':
+    case 'polygon':
+      return new GeoJsonLayer({
+        ...commonProps,
+        data,
+        getFillColor: getColor,
+        getLineColor: style.strokeColor || [0, 0, 0, 255],
+        getLineWidth: style.lineWidth || 1,
+        filled: style.filled !== false,
+        stroked: style.stroked !== false,
+        extruded: style.extruded || false,
+        wireframe: style.wireframe || false,
+        getElevation: style.heightField ? 
+          d => (d.properties ? d.properties[style.heightField] : d[style.heightField]) || 0 : 0,
+        elevationScale: style.elevationScale || 1,
+        lineWidthUnits: 'pixels'
+      });
+    
+    case 'line':
+      return new LineLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getSourcePosition: d => d.geometry ? d.geometry.coordinates[0] : d.source || [0, 0],
+        getTargetPosition: d => d.geometry ? d.geometry.coordinates[1] : d.target || [0, 0],
+        getColor: getColor,
+        getWidth: style.lineWidth || 1,
+        widthUnits: 'pixels'
+      });
+    
+    case 'heatmap':
+      return new HeatmapLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        getWeight: d => 1,
+        aggregation: 'SUM',
+        radiusPixels: style.radius || 30,
+        intensity: style.intensity || 1,
+        threshold: style.threshold || 0.05
+      });
+    
+    case 'hexagon':
+      return new HexagonLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        radius: style.cellSize || 1000,
+        extruded: style.extruded !== false,
+        elevationScale: style.elevationScale || 1,
+        coverage: style.coverage || 0.8,
+        material: style.material || {
+          ambient: 0.4,
+          diffuse: 0.6,
+          shininess: 32,
+          specularColor: [30, 30, 30]
+        }
+      });
+    
+    case 'grid':
+      return new GridLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        cellSize: style.cellSize || 1000,
+        extruded: style.extruded !== false,
+        elevationScale: style.elevationScale || 1,
+        coverage: style.coverage || 0.9
+      });
+    
+    case 'text':
+      return new TextLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        getText: d => d.properties ? (d.properties[style.textField] || '') : (d[style.textField] || ''),
+        getSize: style.textSize || 12,
+        getColor: style.textColor ? style.textColor : getColor,
+        getAngle: style.textAngle || 0,
+        getTextAnchor: style.textAnchor || 'middle',
+        getAlignmentBaseline: style.textBaseline || 'center',
+        fontFamily: style.fontFamily || 'Arial',
+        fontWeight: style.fontWeight || 'normal'
+      });
+    
+    case 'icon':
+      return new IconLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        getIcon: d => style.getIcon ? style.getIcon(d) : 'marker',
+        getSize: style.iconSize || 10,
+        getColor: getColor,
+        sizeScale: style.sizeScale || 1,
+        sizeUnits: 'pixels',
+        // Supposer que iconAtlas et iconMapping sont définis ailleurs
+        iconAtlas: style.iconAtlas || '',
+        iconMapping: style.iconMapping || {}
+      });
+      
+    // Ajoutez d'autres types de couches au besoin
+    
+    default:
+      return new ScatterplotLayer({
+        ...commonProps,
+        data: Array.isArray(data) ? data : (data.features || []),
+        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+        getRadius: style.radius || 5,
+        getFillColor: getColor
+      });
+  }
 }
 
 export default useLayerManager;
