@@ -94,19 +94,22 @@ export default function Home() {
   
   // Load sample data after initial render
   useEffect(() => {
-    if (!isDataLoaded && typeof window !== 'undefined') {
+    // Add a ref to track if the effect has run
+    const loadingAttempted = React.useRef(false);
+    
+    if (!isDataLoaded && typeof window !== 'undefined' && !loadingAttempted.current) {
+      loadingAttempted.current = true;
+      
       const { addData } = useDataState.getState();
       
-      // Use setTimeout to ensure this happens after hydration
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         try {
           // Generate sample points in France
           const samplePoints = generateSampleData('points', 100);
-          addData(samplePoints, 'Points d\'exemple');
+          await addData(samplePoints, 'Points d\'exemple');
           
-          // Also generate some polygons
           const samplePolygons = generateSampleData('polygons', 15);
-          addData(samplePolygons, 'Zones d\'exemple');
+          await addData(samplePolygons, 'Zones d\'exemple');
           
           setIsDataLoaded(true);
           setNotification({
@@ -119,6 +122,8 @@ export default function Home() {
             type: 'error',
             message: 'Erreur lors du chargement des données d\'exemple'
           });
+          // Mark as loaded anyway to prevent retries
+          setIsDataLoaded(true);
         }
       }, 1000);
       
@@ -132,19 +137,34 @@ export default function Home() {
       const { addData } = useDataState.getState();
       const dataName = newData.name || 'Données importées';
       
-      // Ajout d'une vérification des données
-      if (!newData || !newData.features) {
-        throw new Error('Format de données invalide');
+      // Better validation
+      if (!newData) {
+        throw new Error('Données manquantes');
       }
       
-      addData(newData, dataName);
+      // For GeoJSON format
+      if (newData.type === 'FeatureCollection') {
+        if (!Array.isArray(newData.features)) {
+          throw new Error('Format GeoJSON invalide: features doit être un tableau');
+        }
+      }
       
-      setNotification({
-        type: 'success',
-        message: `${dataName} importées avec succès`
-      });
-      
-      setShowImport(false);
+      // Add data and handle promise correctly
+      addData(newData, dataName)
+        .then(() => {
+          setNotification({
+            type: 'success',
+            message: `${dataName} importées avec succès`
+          });
+          setShowImport(false);
+        })
+        .catch(error => {
+          console.error('Error in addData:', error);
+          setNotification({
+            type: 'error',
+            message: `Erreur lors de l'importation: ${error.message}`
+          });
+        });
     } catch (error) {
       console.error('Error importing data:', error);
       setNotification({

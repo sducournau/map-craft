@@ -275,15 +275,14 @@ export const deleteProject = (projectId) => {
 export const saveDataset = (dataset) => {
   return new Promise((resolve, reject) => {
     if (!isIndexedDBAvailable()) {
-      // Mode fallback: utiliser localStorage
+      // Fix localStorage fallback
       try {
-        const key = `dataset_${Date.now()}`;
         const datasetToSave = { 
           ...dataset,
-          id: dataset.id || key,
+          id: dataset.id || `dataset_${Date.now()}`,
           importDate: dataset.importDate || new Date().toISOString()
         };
-        localStorage.setItem(key, JSON.stringify(datasetToSave));
+        localStorage.setItem(`dataset_${datasetToSave.id}`, JSON.stringify(datasetToSave));
         resolve(datasetToSave.id);
       } catch (err) {
         reject(new Error(`Fallback storage error: ${err.message}`));

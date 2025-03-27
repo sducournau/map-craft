@@ -14,74 +14,85 @@ import {
   HexagonLayer,
   GridLayer
 } from '@deck.gl/aggregation-layers';
-import { schemeBlues, schemeReds, schemeGreens, schemePurples, schemeViridis } from 'd3-scale-chromatic';
 
-// Store pour la gestion avancée des couches
+// Store for advanced layer management
 const useLayerManager = create((set, get) => ({
-  // État des couches
+  // Layer state
   layers: [],
   visibleLayers: [],
   activeLayer: null,
   lockedLayers: [],
   layerGroups: [],
-  layerOrder: [], // Pour contrôler l'ordre d'affichage
+  layerOrder: [], // For controlling display order
   
-  // Options globales d'affichage
+  // Global display options
   globalOpacity: 1.0,
   
-  // Récupérer les couches actives pour deck.gl
+  // Get active layers for deck.gl
   get activeLayers() {
-    const layers = get().layers;
-    const visibleLayers = get().visibleLayers;
-    const layerOrder = get().layerOrder;
-    
-    // Filtrer les couches visibles et les trier selon l'ordre défini
-    const activeLayerObjects = layers
-      .filter(layer => visibleLayers.includes(layer.id))
-      .sort((a, b) => {
-        const indexA = layerOrder.indexOf(a.id);
-        const indexB = layerOrder.indexOf(b.id);
-        return (indexA === -1 ? Infinity : indexA) - (indexB === -1 ? Infinity : indexB);
-      });
-    
-    // Générer les couches deck.gl
-    return activeLayerObjects.map(layer => layer.deckGlLayer);
-  },
-  
-  // Ajouter une nouvelle couche
-  addLayer: (layerConfig) => {
-    const id = layerConfig.id || nanoid();
-    const defaultStyle = getDefaultStyle(layerConfig.type);
-    
-    const newLayer = {
-      ...layerConfig,
-      id,
-      style: layerConfig.style || defaultStyle,
-      metadata: {
-        ...layerConfig.metadata,
-        createdAt: Date.now()
-      }
-    };
-    
-    // Générer la couche deck.gl initiale
-    newLayer.deckGlLayer = generateDeckGlLayer(newLayer);
-    
-    set(state => {
-      // Ajouter la couche en haut (au début) de l'ordre d'affichage
-      const newLayerOrder = [id, ...state.layerOrder];
+    try {
+      const layers = get().layers;
+      const visibleLayers = get().visibleLayers;
+      const layerOrder = get().layerOrder;
       
-      return {
-        layers: [...state.layers, newLayer],
-        visibleLayers: [...state.visibleLayers, id],
-        activeLayer: id,
-        layerOrder: newLayerOrder
-      };
-    });
-    
-    return id;
+      // Filter visible layers and sort by defined order
+      const activeLayerObjects = layers
+        .filter(layer => visibleLayers.includes(layer.id))
+        .sort((a, b) => {
+          const indexA = layerOrder.indexOf(a.id);
+          const indexB = layerOrder.indexOf(b.id);
+          return (indexA === -1 ? Infinity : indexA) - (indexB === -1 ? Infinity : indexB);
+        });
+      
+      // Filter out invalid layers and generate deck.gl layers
+      return activeLayerObjects
+        .map(layer => layer.deckGlLayer)
+        .filter(layer => layer !== null);
+    } catch (error) {
+      console.error("Error getting active layers:", error);
+      return []; // Return empty array on error
+    }
   },
   
-  // Supprimer une couche
+  // Add a new layer
+  addLayer: (layerConfig) => {
+    try {
+      const id = layerConfig.id || nanoid();
+      const defaultStyle = getDefaultStyle(layerConfig.type || guessLayerType(layerConfig.data));
+      
+      const newLayer = {
+        ...layerConfig,
+        id,
+        style: layerConfig.style || defaultStyle,
+        metadata: {
+          ...layerConfig.metadata,
+          createdAt: Date.now()
+        }
+      };
+      
+      // Generate the initial deck.gl layer
+      newLayer.deckGlLayer = generateDeckGlLayer(newLayer);
+      
+      set(state => {
+        // Add the layer at the top (beginning) of the display order
+        const newLayerOrder = [id, ...state.layerOrder];
+        
+        return {
+          layers: [...state.layers, newLayer],
+          visibleLayers: [...state.visibleLayers, id],
+          activeLayer: id,
+          layerOrder: newLayerOrder
+        };
+      });
+      
+      return id;
+    } catch (error) {
+      console.error("Error adding layer:", error);
+      return null;
+    }
+  },
+  
+  // Remove a layer
   removeLayer: (layerId) => {
     set(state => ({
       layers: state.layers.filter(layer => layer.id !== layerId),
@@ -91,39 +102,48 @@ const useLayerManager = create((set, get) => ({
     }));
   },
   
-  // Définir les couches (remplacement complet)
+  // Set layers (complete replacement)
   setLayers: (layers) => {
-    const procesedLayers = layers.map(layer => ({
-      ...layer,
-      deckGlLayer: generateDeckGlLayer(layer)
-    }));
-    
-    set(state => {
-      // Reconstruire l'ordre des couches
-      const layerOrder = procesedLayers.map(layer => layer.id);
+    try {
+      const processedLayers = layers.map(layer => ({
+        ...layer,
+        deckGlLayer: layer.deckGlLayer || generateDeckGlLayer(layer)
+      }));
       
-      return {
-        layers: procesedLayers,
-        layerOrder,
-        // Conserver seulement les couches visibles qui existent encore
-        visibleLayers: state.visibleLayers.filter(id => 
-          procesedLayers.some(layer => layer.id === id)
-        )
-      };
-    });
+      set(state => {
+        // Rebuild layer order
+        const layerIds = processedLayers.map(layer => layer.id);
+        const newLayerOrder = state.layerOrder.filter(id => layerIds.includes(id));
+        
+        // Add any new layers that aren't in the current order
+        const missingLayers = layerIds.filter(id => !newLayerOrder.includes(id));
+        newLayerOrder.push(...missingLayers);
+        
+        return {
+          layers: processedLayers,
+          layerOrder: newLayerOrder,
+          // Keep only visible layers that still exist
+          visibleLayers: state.visibleLayers.filter(id => 
+            processedLayers.some(layer => layer.id === id)
+          )
+        };
+      });
+    } catch (error) {
+      console.error("Error setting layers:", error);
+    }
   },
   
-  // Définir la couche active
+  // Set the active layer
   setActiveLayer: (layerId) => {
     set({ activeLayer: layerId });
   },
   
-  // Définir les couches visibles
+  // Set visible layers
   setVisibleLayers: (visibleLayers) => {
     set({ visibleLayers });
   },
   
-  // Basculer la visibilité d'une couche
+  // Toggle layer visibility
   toggleLayerVisibility: (layerId) => {
     set(state => {
       const isVisible = state.visibleLayers.includes(layerId);
@@ -136,59 +156,67 @@ const useLayerManager = create((set, get) => ({
     });
   },
   
-  // Mettre à jour le style d'une couche
+  // Update layer style
   updateLayerStyle: (layerId, styleUpdates) => {
-    set(state => {
-      const updatedLayers = state.layers.map(layer => {
-        if (layer.id !== layerId) return layer;
+    try {
+      set(state => {
+        const updatedLayers = state.layers.map(layer => {
+          if (layer.id !== layerId) return layer;
+          
+          const updatedLayer = {
+            ...layer,
+            style: {
+              ...layer.style,
+              ...styleUpdates
+            }
+          };
+          
+          // Regenerate the deck.gl layer with the new style
+          updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
+          
+          return updatedLayer;
+        });
         
-        const updatedLayer = {
-          ...layer,
-          style: {
-            ...layer.style,
-            ...styleUpdates
-          }
-        };
-        
-        // Regenerer la couche deck.gl avec le nouveau style
-        updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
-        
-        return updatedLayer;
+        return { layers: updatedLayers };
       });
-      
-      return { layers: updatedLayers };
-    });
+    } catch (error) {
+      console.error(`Error updating style for layer ${layerId}:`, error);
+    }
   },
   
-  // Mettre à jour les données d'une couche
+  // Update layer data
   updateLayerData: (layerId, data) => {
-    set(state => {
-      const updatedLayers = state.layers.map(layer => {
-        if (layer.id !== layerId) return layer;
+    try {
+      set(state => {
+        const updatedLayers = state.layers.map(layer => {
+          if (layer.id !== layerId) return layer;
+          
+          const updatedLayer = {
+            ...layer,
+            data
+          };
+          
+          // Regenerate the deck.gl layer with the new data
+          updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
+          
+          return updatedLayer;
+        });
         
-        const updatedLayer = {
-          ...layer,
-          data
-        };
-        
-        // Regenerer la couche deck.gl avec les nouvelles données
-        updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
-        
-        return updatedLayer;
+        return { layers: updatedLayers };
       });
-      
-      return { layers: updatedLayers };
-    });
+    } catch (error) {
+      console.error(`Error updating data for layer ${layerId}:`, error);
+    }
   },
   
-  // Mettre à jour les métadonnées d'une couche
+  // Update layer metadata
   updateLayerMetadata: (layerId, metadata) => {
     set(state => ({
       layers: state.layers.map(layer => 
         layer.id === layerId
           ? {
               ...layer,
-              ...metadata, // Mise à jour directe des propriétés au niveau supérieur
+              ...metadata, // Direct update of top-level properties
               metadata: {
                 ...layer.metadata,
                 ...metadata
@@ -199,28 +227,32 @@ const useLayerManager = create((set, get) => ({
     }));
   },
   
-  // Appliquer un filtre à une couche
+  // Apply a filter to a layer
   updateLayerFilter: (layerId, filter) => {
-    set(state => {
-      const updatedLayers = state.layers.map(layer => {
-        if (layer.id !== layerId) return layer;
+    try {
+      set(state => {
+        const updatedLayers = state.layers.map(layer => {
+          if (layer.id !== layerId) return layer;
+          
+          const updatedLayer = {
+            ...layer,
+            filter
+          };
+          
+          // Regenerate the deck.gl layer with the new filter
+          updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
+          
+          return updatedLayer;
+        });
         
-        const updatedLayer = {
-          ...layer,
-          filter
-        };
-        
-        // Regenerer la couche deck.gl avec le nouveau filtre
-        updatedLayer.deckGlLayer = generateDeckGlLayer(updatedLayer);
-        
-        return updatedLayer;
+        return { layers: updatedLayers };
       });
-      
-      return { layers: updatedLayers };
-    });
+    } catch (error) {
+      console.error(`Error updating filter for layer ${layerId}:`, error);
+    }
   },
   
-  // Verrouiller/déverrouiller une couche
+  // Lock/unlock a layer
   lockLayer: (layerId, isLocked) => {
     set(state => ({
       lockedLayers: isLocked
@@ -229,7 +261,7 @@ const useLayerManager = create((set, get) => ({
     }));
   },
   
-  // Créer un groupe de couches
+  // Create a layer group
   createLayerGroup: (name, layerIds) => {
     const groupId = nanoid();
     
@@ -247,7 +279,7 @@ const useLayerManager = create((set, get) => ({
     return groupId;
   },
   
-  // Mettre à jour un groupe de couches
+  // Update a layer group
   updateLayerGroup: (groupId, updates) => {
     set(state => ({
       layerGroups: state.layerGroups.map(group => 
@@ -258,92 +290,97 @@ const useLayerManager = create((set, get) => ({
     }));
   },
   
-  // Supprimer un groupe de couches
+  // Remove a layer group
   removeLayerGroup: (groupId) => {
     set(state => ({
       layerGroups: state.layerGroups.filter(group => group.id !== groupId)
     }));
   },
   
-  // Réordonner les couches
+  // Reorder layers
   reorderLayers: (layerOrder) => {
     set({ layerOrder });
   },
   
-  // Monter une couche dans l'ordre d'affichage (la rendre plus visible)
+  // Move a layer up in the display order (make it more visible)
   moveLayerUp: (layerId) => {
     set(state => {
       const currentOrder = [...state.layerOrder];
       const index = currentOrder.indexOf(layerId);
       
-      if (index <= 0) return state; // Déjà tout en haut
+      if (index <= 0) return state; // Already at the top
       
-      // Échanger avec la couche au-dessus
+      // Swap with the layer above
       [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]];
       
       return { layerOrder: currentOrder };
     });
   },
   
-  // Descendre une couche dans l'ordre d'affichage (la rendre moins visible)
+  // Move a layer down in the display order (make it less visible)
   moveLayerDown: (layerId) => {
     set(state => {
       const currentOrder = [...state.layerOrder];
       const index = currentOrder.indexOf(layerId);
       
-      if (index === -1 || index >= currentOrder.length - 1) return state; // Déjà tout en bas
+      if (index === -1 || index >= currentOrder.length - 1) return state; // Already at the bottom
       
-      // Échanger avec la couche en-dessous
+      // Swap with the layer below
       [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]];
       
       return { layerOrder: currentOrder };
     });
   },
   
-  // Dupliquer une couche
+  // Duplicate a layer
   duplicateLayer: (layerId) => {
-    const layers = get().layers;
-    const layerToDuplicate = layers.find(layer => layer.id === layerId);
-    
-    if (!layerToDuplicate) return null;
-    
-    const duplicatedLayer = {
-      ...layerToDuplicate,
-      id: nanoid(),
-      title: `${layerToDuplicate.title || layerId} (copie)`,
-      metadata: {
-        ...layerToDuplicate.metadata,
-        createdAt: Date.now(),
-        isDuplicate: true,
-        originalLayer: layerId
-      }
-    };
-    
-    // Générer la nouvelle couche deck.gl
-    duplicatedLayer.deckGlLayer = generateDeckGlLayer(duplicatedLayer);
-    
-    set(state => {
-      // Insérer la copie juste après l'original dans l'ordre des couches
-      const currentOrder = [...state.layerOrder];
-      const insertIndex = currentOrder.indexOf(layerId);
+    try {
+      const layers = get().layers;
+      const layerToDuplicate = layers.find(layer => layer.id === layerId);
       
-      if (insertIndex !== -1) {
-        currentOrder.splice(insertIndex + 1, 0, duplicatedLayer.id);
-      } else {
-        currentOrder.unshift(duplicatedLayer.id);
-      }
+      if (!layerToDuplicate) return null;
       
-      return {
-        layers: [...state.layers, duplicatedLayer],
-        visibleLayers: [...state.visibleLayers, duplicatedLayer.id],
-        layerOrder: currentOrder
+      const duplicatedLayer = {
+        ...layerToDuplicate,
+        id: nanoid(),
+        title: `${layerToDuplicate.title || layerId} (copie)`,
+        metadata: {
+          ...layerToDuplicate.metadata,
+          createdAt: Date.now(),
+          isDuplicate: true,
+          originalLayer: layerId
+        }
       };
-    });
-    
-    return duplicatedLayer.id;
+      
+      // Generate the new deck.gl layer
+      duplicatedLayer.deckGlLayer = generateDeckGlLayer(duplicatedLayer);
+      
+      set(state => {
+        // Insert the copy just after the original in the layer order
+        const currentOrder = [...state.layerOrder];
+        const insertIndex = currentOrder.indexOf(layerId);
+        
+        if (insertIndex !== -1) {
+          currentOrder.splice(insertIndex + 1, 0, duplicatedLayer.id);
+        } else {
+          currentOrder.unshift(duplicatedLayer.id);
+        }
+        
+        return {
+          layers: [...state.layers, duplicatedLayer],
+          visibleLayers: [...state.visibleLayers, duplicatedLayer.id],
+          layerOrder: currentOrder
+        };
+      });
+      
+      return duplicatedLayer.id;
+    } catch (error) {
+      console.error("Error duplicating layer:", error);
+      return null;
+    }
   },
   
-  // Activer/désactiver le mode temporel pour une couche
+  // Enable/disable time mode for a layer
   toggleTimeEnabled: (layerId, enabled) => {
     set(state => ({
       layers: state.layers.map(layer => 
@@ -361,12 +398,12 @@ const useLayerManager = create((set, get) => ({
     }));
   },
   
-  // Exporter une définition de couche (pour sauvegarde ou partage)
+  // Export a layer definition (for saving or sharing)
   exportLayerDefinition: (layerId) => {
     const layer = get().layers.find(l => l.id === layerId);
     if (!layer) return null;
     
-    // Créer une version serialisable de la couche (sans les fonctions ou objets complexes)
+    // Create a serializable version of the layer (without functions or complex objects)
     const exportableDef = {
       id: layer.id,
       title: layer.title,
@@ -380,12 +417,12 @@ const useLayerManager = create((set, get) => ({
     return exportableDef;
   },
   
-  // Importer une définition de couche
+  // Import a layer definition
   importLayerDefinition: (definition, data) => {
-    // Créer une couche à partir de la définition
+    // Create a layer from the definition
     const layerConfig = {
       ...definition,
-      id: definition.id || nanoid(), // Utiliser un nouvel ID si nécessaire
+      id: definition.id || nanoid(), // Use a new ID if needed
       data
     };
     
@@ -393,37 +430,80 @@ const useLayerManager = create((set, get) => ({
   }
 }));
 
-// Fonctions utilitaires
+// Helper functions
 
-// Générer un style par défaut selon le type de couche
+// Generate a default style based on layer type
 function getDefaultStyle(layerType) {
-  // Couleurs par défaut par type
+  // Default colors by type
   const defaultColors = {
-    choropleth: [158, 202, 225, 180],  // Bleu clair
-    point: [33, 113, 181, 255],        // Bleu
-    heatmap: schemeViridis,            // Dégradé viridis
-    cluster: schemeBlues,              // Dégradé bleu
-    line: [106, 137, 204, 255],        // Bleu moyen
-    polygon: [43, 140, 190, 180],      // Bleu-vert
+    choropleth: [158, 202, 225, 180],  // Light blue
+    point: [33, 113, 181, 255],        // Blue
+    heatmap: [
+      [255, 255, 204],
+      [199, 233, 180],
+      [127, 205, 187],
+      [65, 182, 196],
+      [44, 127, 184],
+      [37, 52, 148]
+    ],           // Viridis gradient
+    cluster: [
+      [239, 243, 255],
+      [198, 219, 239],
+      [158, 202, 225],
+      [107, 174, 214],
+      [66, 146, 198],
+      [33, 113, 181],
+      [8, 81, 156],
+      [8, 48, 107]
+    ],           // Blues gradient
+    line: [106, 137, 204, 255],        // Medium blue
+    polygon: [43, 140, 190, 180],      // Blue-green
     '3d': [65, 182, 196, 200],         // Turquoise
-    hexagon: schemeGreens,             // Dégradé vert
-    grid: schemeReds,                  // Dégradé rouge
-    contour: schemeViridis,            // Dégradé viridis
-    trips: [255, 140, 0, 220],         // Orange
-    h3: schemePurples,                 // Dégradé violet
-    text: [0, 0, 0, 255],              // Noir
-    icon: [67, 67, 67, 255],           // Gris foncé
-    screenGrid: schemeReds,            // Dégradé rouge
-    terrain: [96, 125, 139, 255]       // Bleu-gris
+    hexagon: [
+      [237, 248, 251],
+      [204, 236, 230],
+      [153, 216, 201],
+      [102, 194, 164],
+      [65, 174, 118],
+      [35, 139, 69],
+      [0, 88, 36]
+    ],         // Greens gradient
+    grid: [
+      [255, 245, 240],
+      [254, 224, 210],
+      [252, 187, 161],
+      [252, 146, 114],
+      [251, 106, 74],
+      [239, 59, 44],
+      [203, 24, 29],
+      [165, 15, 21],
+      [103, 0, 13]
+    ],            // Reds gradient
+    text: [0, 0, 0, 255],              // Black
+    icon: [67, 67, 67, 255],           // Dark gray
+    terrain: [96, 125, 139, 255]       // Blue-gray
   };
   
-  // Style de base
+  // Base style
   const baseStyle = {
     opacity: 0.8,
-    color: defaultColors[layerType] || [100, 100, 100, 255],
+    color: Array.isArray(defaultColors[layerType]) && defaultColors[layerType].length <= 4 
+      ? defaultColors[layerType] 
+      : [100, 100, 100, 255],
     colorField: null,
     colorScale: 'sequential',
-    colorRange: Array.isArray(defaultColors[layerType]) ? defaultColors[layerType] : schemeBlues,
+    colorRange: Array.isArray(defaultColors[layerType]) && defaultColors[layerType].length > 4 
+      ? defaultColors[layerType] 
+      : [
+        [239, 243, 255],
+        [198, 219, 239],
+        [158, 202, 225],
+        [107, 174, 214],
+        [66, 146, 198],
+        [33, 113, 181],
+        [8, 81, 156],
+        [8, 48, 107]
+      ],
     reverseColorScale: false,
     radius: 100,
     lineWidth: 1,
@@ -433,7 +513,7 @@ function getDefaultStyle(layerType) {
     cellSize: 1000
   };
   
-  // Styles spécifiques selon le type
+  // Specific styles by type
   switch (layerType) {
     case 'point':
       return {
@@ -503,192 +583,224 @@ function getDefaultStyle(layerType) {
         widthMaxPixels: 10
       };
       
-    case 'trips':
-      return {
-        ...baseStyle,
-        trailLength: 10,
-        currentTime: 0,
-        widthMinPixels: 2,
-        rounded: true
-      };
-      
     default:
       return baseStyle;
   }
 }
 
-// Générer une couche deck.gl à partir d'une configuration de couche
+// Generate a deck.gl layer from a layer configuration
 function generateDeckGlLayer(layer) {
   if (!layer || !layer.data) {
+    console.warn('Invalid layer or missing data', layer?.id);
     return null;
   }
   
-  const { id, type, data, style = {} } = layer;
-  
-  // Propriétés communes
-  const commonProps = {
-    id: `layer-${id}`,
-    pickable: true,
-    opacity: style.opacity || 0.8,
-    visible: true,
-    autoHighlight: style.autoHighlight || false,
-    highlightColor: [255, 255, 255, 100]
-  };
-  
-  // Fonction pour obtenir la couleur
-  const getColor = (d) => {
-    if (!style.colorField) {
-      // Couleur fixe
-      return style.color || [100, 100, 100, 255];
-    }
+  try {
+    const { id, type, data, style = {} } = layer;
     
-    // Obtenir la valeur du champ
-    const value = d.properties ? d.properties[style.colorField] : d[style.colorField];
+    // Determine effective layer type if not provided
+    const effectiveType = type || guessLayerType(data);
     
-    if (value === undefined || value === null) {
-      return style.color || [100, 100, 100, 255];
-    }
+    // Common properties
+    const commonProps = {
+      id: `layer-${id}`,
+      pickable: true,
+      opacity: style.opacity || 0.8,
+      visible: true,
+      autoHighlight: style.autoHighlight || false,
+      highlightColor: [255, 255, 255, 100]
+    };
     
-    // Couleur basée sur la valeur (implémentation simplifiée)
-    // Dans une implémentation réelle, on utiliserait une échelle de couleur
-    const min = 0; // À déterminer dynamiquement
-    const max = 100; // À déterminer dynamiquement
-    const normalizedValue = (value - min) / (max - min);
-    
-    // Couleur entre bleu et rouge
-    return [
-      Math.round(normalizedValue * 255), // R
-      50, // G
-      Math.round((1 - normalizedValue) * 255), // B
-      255  // Alpha
-    ];
-  };
-  
-  // Génération de la couche selon le type
-  switch (type) {
-    case 'point':
-      return new ScatterplotLayer({
-        ...commonProps,
-        data,
-        getPosition: d => d.geometry?.coordinates || [0, 0],
-        getRadius: style.radius || 5,
-        getFillColor: getColor,
-        stroked: style.stroked !== false,
-        lineWidthMinPixels: 1,
-        getLineColor: style.strokeColor || [0, 0, 0, 255],
-        getLineWidth: style.lineWidth || 1
-      });
-    
-    case 'choropleth':
-    case 'polygon':
-      return new GeoJsonLayer({
-        ...commonProps,
-        data,
-        getFillColor: getColor,
-        getLineColor: style.strokeColor || [0, 0, 0, 255],
-        getLineWidth: style.lineWidth || 1,
-        filled: style.filled !== false,
-        stroked: style.stroked !== false,
-        extruded: style.extruded || false,
-        wireframe: style.wireframe || false,
-        getElevation: style.heightField ? 
-          d => (d.properties ? d.properties[style.heightField] : d[style.heightField]) || 0 : 0,
-        elevationScale: style.elevationScale || 1,
-        lineWidthUnits: 'pixels'
-      });
-    
-    case 'line':
-      return new LineLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getSourcePosition: d => d.geometry ? d.geometry.coordinates[0] : d.source || [0, 0],
-        getTargetPosition: d => d.geometry ? d.geometry.coordinates[1] : d.target || [0, 0],
-        getColor: getColor,
-        getWidth: style.lineWidth || 1,
-        widthUnits: 'pixels'
-      });
-    
-    case 'heatmap':
-      return new HeatmapLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        getWeight: d => 1,
-        aggregation: 'SUM',
-        radiusPixels: style.radius || 30,
-        intensity: style.intensity || 1,
-        threshold: style.threshold || 0.05
-      });
-    
-    case 'hexagon':
-      return new HexagonLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        radius: style.cellSize || 1000,
-        extruded: style.extruded !== false,
-        elevationScale: style.elevationScale || 1,
-        coverage: style.coverage || 0.8,
-        material: style.material || {
-          ambient: 0.4,
-          diffuse: 0.6,
-          shininess: 32,
-          specularColor: [30, 30, 30]
-        }
-      });
-    
-    case 'grid':
-      return new GridLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        cellSize: style.cellSize || 1000,
-        extruded: style.extruded !== false,
-        elevationScale: style.elevationScale || 1,
-        coverage: style.coverage || 0.9
-      });
-    
-    case 'text':
-      return new TextLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        getText: d => d.properties ? (d.properties[style.textField] || '') : (d[style.textField] || ''),
-        getSize: style.textSize || 12,
-        getColor: style.textColor ? style.textColor : getColor,
-        getAngle: style.textAngle || 0,
-        getTextAnchor: style.textAnchor || 'middle',
-        getAlignmentBaseline: style.textBaseline || 'center',
-        fontFamily: style.fontFamily || 'Arial',
-        fontWeight: style.fontWeight || 'normal'
-      });
-    
-    case 'icon':
-      return new IconLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        getIcon: d => style.getIcon ? style.getIcon(d) : 'marker',
-        getSize: style.iconSize || 10,
-        getColor: getColor,
-        sizeScale: style.sizeScale || 1,
-        sizeUnits: 'pixels',
-        // Supposer que iconAtlas et iconMapping sont définis ailleurs
-        iconAtlas: style.iconAtlas || '',
-        iconMapping: style.iconMapping || {}
-      });
+    // Function to get color
+    const getColor = (d) => {
+      if (!style.colorField) {
+        // Fixed color
+        return style.color || [100, 100, 100, 255];
+      }
       
-    // Ajoutez d'autres types de couches au besoin
+      // Get field value
+      const value = d.properties ? d.properties[style.colorField] : d[style.colorField];
+      
+      if (value === undefined || value === null) {
+        return style.color || [100, 100, 100, 255];
+      }
+      
+      // Color based on value (simplified implementation)
+      // In a real implementation, you would use a color scale
+      const min = 0; // Should be determined dynamically
+      const max = 100; // Should be determined dynamically
+      const normalizedValue = (value - min) / (max - min);
+      
+      // Color between blue and red
+      return [
+        Math.round(normalizedValue * 255), // R
+        50, // G
+        Math.round((1 - normalizedValue) * 255), // B
+        255  // Alpha
+      ];
+    };
     
-    default:
-      return new ScatterplotLayer({
-        ...commonProps,
-        data: Array.isArray(data) ? data : (data.features || []),
-        getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
-        getRadius: style.radius || 5,
-        getFillColor: getColor
-      });
+    // Generate layer based on type
+    switch (effectiveType) {
+      case 'point':
+        return new ScatterplotLayer({
+          ...commonProps,
+          data,
+          getPosition: d => d.geometry?.coordinates || [0, 0],
+          getRadius: style.radius || 5,
+          getFillColor: getColor,
+          stroked: style.stroked !== false,
+          lineWidthMinPixels: 1,
+          getLineColor: style.strokeColor || [0, 0, 0, 255],
+          getLineWidth: style.lineWidth || 1
+        });
+      
+      case 'choropleth':
+      case 'polygon':
+        return new GeoJsonLayer({
+          ...commonProps,
+          data,
+          getFillColor: getColor,
+          getLineColor: style.strokeColor || [0, 0, 0, 255],
+          getLineWidth: style.lineWidth || 1,
+          filled: style.filled !== false,
+          stroked: style.stroked !== false,
+          extruded: style.extruded || false,
+          wireframe: style.wireframe || false,
+          getElevation: style.heightField ? 
+            d => (d.properties ? d.properties[style.heightField] : d[style.heightField]) || 0 : 0,
+          elevationScale: style.elevationScale || 1,
+          lineWidthUnits: 'pixels'
+        });
+      
+      case 'line':
+        return new LineLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getSourcePosition: d => d.geometry ? d.geometry.coordinates[0] : d.source || [0, 0],
+          getTargetPosition: d => d.geometry ? d.geometry.coordinates[1] : d.target || [0, 0],
+          getColor: getColor,
+          getWidth: style.lineWidth || 1,
+          widthUnits: 'pixels'
+        });
+      
+      case 'heatmap':
+        return new HeatmapLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          getWeight: d => 1,
+          aggregation: 'SUM',
+          radiusPixels: style.radius || 30,
+          intensity: style.intensity || 1,
+          threshold: style.threshold || 0.05
+        });
+      
+      case 'hexagon':
+        return new HexagonLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          radius: style.cellSize || 1000,
+          extruded: style.extruded !== false,
+          elevationScale: style.elevationScale || 1,
+          coverage: style.coverage || 0.8,
+          material: style.material || {
+            ambient: 0.4,
+            diffuse: 0.6,
+            shininess: 32,
+            specularColor: [30, 30, 30]
+          }
+        });
+      
+      case 'grid':
+        return new GridLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          cellSize: style.cellSize || 1000,
+          extruded: style.extruded !== false,
+          elevationScale: style.elevationScale || 1,
+          coverage: style.coverage || 0.9
+        });
+      
+      case 'text':
+        return new TextLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          getText: d => d.properties ? (d.properties[style.textField] || '') : (d[style.textField] || ''),
+          getSize: style.textSize || 12,
+          getColor: style.textColor ? style.textColor : getColor,
+          getAngle: style.textAngle || 0,
+          getTextAnchor: style.textAnchor || 'middle',
+          getAlignmentBaseline: style.textBaseline || 'center',
+          fontFamily: style.fontFamily || 'Arial',
+          fontWeight: style.fontWeight || 'normal'
+        });
+      
+      case 'icon':
+        return new IconLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          getIcon: d => style.getIcon ? style.getIcon(d) : 'marker',
+          getSize: style.iconSize || 10,
+          getColor: getColor,
+          sizeScale: style.sizeScale || 1,
+          sizeUnits: 'pixels',
+          // Assume that iconAtlas and iconMapping are defined elsewhere
+          iconAtlas: style.iconAtlas || 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+          iconMapping: style.iconMapping || {
+            marker: {x: 0, y: 0, width: 128, height: 128, mask: true}
+          }
+        });
+      
+      // Add other layer types as needed
+      
+      default:
+        return new ScatterplotLayer({
+          ...commonProps,
+          data: Array.isArray(data) ? data : (data.features || []),
+          getPosition: d => d.geometry ? d.geometry.coordinates : [d.longitude || 0, d.latitude || 0],
+          getRadius: style.radius || 5,
+          getFillColor: getColor
+        });
+    }
+  } catch (error) {
+    console.error(`Error generating layer:`, error, layer);
+    // Return a fallback empty layer
+    return new GeoJsonLayer({
+      id: `error-layer-${layer?.id || Date.now()}`,
+      data: { type: 'FeatureCollection', features: [] },
+      visible: false
+    });
   }
+}
+
+// Helper function to guess layer type from data
+function guessLayerType(data) {
+  if (!data) return 'point';
+  
+  if (data.type === 'FeatureCollection' && Array.isArray(data.features) && data.features.length > 0) {
+    const geomType = data.features[0]?.geometry?.type;
+    if (geomType) {
+      if (geomType.includes('Point')) return 'point';
+      if (geomType.includes('Polygon')) return 'choropleth';
+      if (geomType.includes('Line')) return 'line';
+    }
+  }
+  
+  // For arrays of objects with lat/lng properties
+  if (Array.isArray(data) && data.length > 0) {
+    const firstItem = data[0];
+    if ((firstItem.lat !== undefined && firstItem.lng !== undefined) ||
+        (firstItem.latitude !== undefined && firstItem.longitude !== undefined)) {
+      return 'point';
+    }
+  }
+  
+  return 'point'; // Default fallback
 }
 
 export default useLayerManager;

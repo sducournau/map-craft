@@ -23,14 +23,16 @@ import {
   H3HexagonLayer 
 } from '@deck.gl/geo-layers';
 import { ColorScaleShader } from '@deck.gl/extensions';
-import { saveDataset, loadDataset } from '@/utils/storage';
+import { saveDataset, loadDataset } from '../utils/storage';
 
 const useDataState = create((set, get) => ({
-  // Données chargées
+  // Loaded data
   datasets: [],
   selectedDataset: null,
+  lastError: null,
+  isLoading: false,
 
-  // État de visualisation
+  // Visualization state
   visualizationType: 'scatterplot',
   visualizationConfig: {
     colorField: null,
@@ -70,29 +72,67 @@ const useDataState = create((set, get) => ({
     classificationMethod: 'quantile'
   },
 
-  // État de filtrage
+  // Filter state
   filters: [],
 
-  // Charger un jeu de données
+  // Set loading state
+  setLoading: (isLoading) => {
+    set({ isLoading });
+  },
+
+  // Set error state
+  setError: (error) => {
+    console.error("Data state error:", error);
+    set({ lastError: error instanceof Error ? error.message : String(error) });
+  },
+
+  // Clear error state
+  clearError: () => {
+    set({ lastError: null });
+  },
+
+  // Load data
   loadData: async (dataId) => {
     try {
+      set({ isLoading: true });
+      
       const data = await loadDataset(dataId);
       
       set(state => ({
         datasets: [...state.datasets, data],
-        selectedDataset: data.id
+        selectedDataset: data.id,
+        lastError: null
       }));
       
+      set({ isLoading: false });
       return data.id;
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('Error loading data:', error);
+      set({ 
+        isLoading: false, 
+        lastError: error instanceof Error ? error.message : String(error) 
+      });
       throw error;
     }
   },
 
-  // Ajouter un jeu de données
+  // Add data
   addData: async (data, name, type = 'geojson') => {
     try {
+      set({ isLoading: true });
+      
+      // Basic validation
+      if (!data) {
+        throw new Error('No data provided');
+      }
+      
+      // Basic GeoJSON validation
+      if (type === 'geojson' && data.type === 'FeatureCollection') {
+        if (!Array.isArray(data.features)) {
+          throw new Error('Invalid GeoJSON: features must be an array');
+        }
+      }
+      
       const id = nanoid();
       const datasetInfo = {
         id,
@@ -102,398 +142,347 @@ const useDataState = create((set, get) => ({
         dateAdded: new Date().toISOString()
       };
       
-      // Sauvegarder dans IndexedDB
-      await saveDataset(datasetInfo);
+      // Try to save to storage, but don't fail if storage fails
+      try {
+        await saveDataset(datasetInfo);
+      } catch (storageError) {
+        console.warn('Storage error, continuing with in-memory only:', storageError);
+      }
       
+      // Update state regardless of storage success
       set(state => ({
         datasets: [...state.datasets, datasetInfo],
-        selectedDataset: id
+        selectedDataset: id,
+        lastError: null,
+        isLoading: false
       }));
       
       return id;
     } catch (error) {
-      console.error('Erreur lors de l\'ajout des données:', error);
+      console.error('Error adding data:', error);
+      set({ 
+        isLoading: false, 
+        lastError: error instanceof Error ? error.message : String(error) 
+      });
       throw error;
     }
   },
 
-  // Obtenir les couches de visualisation pour deck.gl
+  // Get visualization layers for deck.gl
   getVisualizationLayers: () => {
-    const { selectedDataset, visualizationType, visualizationConfig } = get();
-    
-    if (!selectedDataset) return [];
-    
-    const dataset = get().datasets.find(d => d.id === selectedDataset);
-    if (!dataset || !dataset.data) return [];
-    
-    const data = dataset.data;
-    
-    // Propriétés communes pour les couches
-    const commonProps = {
-      pickable: true,
-      opacity: visualizationConfig.opacity,
-      updateTriggers: {
-        getColor: [
-          visualizationConfig.colorField, 
-          visualizationConfig.colorScale, 
-          visualizationConfig.colorRange,
-          visualizationConfig.reverseColorScale
-        ],
-        getRadius: [visualizationConfig.sizeField],
-        getElevation: [visualizationConfig.heightField, visualizationConfig.elevationScale]
-      }
-    };
-    
-    // Fonction pour obtenir la couleur basée sur un champ et une échelle
-    const getColorFromField = (object) => {
-      const { colorField, colorRange, colorScale, reverseColorScale } = visualizationConfig;
+    try {
+      const { selectedDataset, visualizationType, visualizationConfig } = get();
       
-      if (!colorField) return [100, 100, 100, 255];
+      if (!selectedDataset) return [];
       
-      let value = 0;
+      const dataset = get().datasets.find(d => d.id === selectedDataset);
+      if (!dataset || !dataset.data) return [];
       
-      if (object.properties) {
-        value = object.properties[colorField];
-      } else if (object[colorField] !== undefined) {
-        value = object[colorField];
-      }
+      const data = dataset.data;
       
-      if (value === undefined || value === null) {
-        return [100, 100, 100, 255];
-      }
+      // Common properties for layers
+      const commonProps = {
+        pickable: true,
+        opacity: visualizationConfig.opacity,
+        updateTriggers: {
+          getColor: [
+            visualizationConfig.colorField, 
+            visualizationConfig.colorScale, 
+            visualizationConfig.colorRange,
+            visualizationConfig.reverseColorScale
+          ],
+          getRadius: [visualizationConfig.sizeField],
+          getElevation: [visualizationConfig.heightField, visualizationConfig.elevationScale]
+        }
+      };
       
-      // Normaliser la valeur entre 0 et 1
-      const { min, max } = getFieldMinMax(colorField, data);
-      const normalizedValue = (value - min) / (max - min);
-      
-      // Inverser la valeur si nécessaire
-      const scaledValue = reverseColorScale ? 1 - normalizedValue : normalizedValue;
-      
-      // Obtenir l'index de couleur correspondant
-      const colors = visualizationConfig.colorRange;
-      const colorIndex = Math.min(
-        Math.floor(scaledValue * colors.length),
-        colors.length - 1
-      );
-      
-      return [...colors[colorIndex], 255];
-    };
-    
-    // Générer les couches en fonction du type de visualisation
-    switch (visualizationType) {
-      case 'scatterplot':
-        return [
-          new ScatterplotLayer({
-            id: 'scatterplot-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            radiusUnits: 'meters',
-            getPosition: getPosition,
-            getRadius: getRadius,
-            getFillColor: getColorFromField,
-            radiusScale: visualizationConfig.radius,
-            radiusMinPixels: visualizationConfig.pointRadiusMinPixels,
-            radiusMaxPixels: visualizationConfig.pointRadiusMaxPixels,
-            stroked: visualizationConfig.stroked,
-            lineWidthUnits: 'pixels',
-            getLineColor: [0, 0, 0, 255],
-            getLineWidth: visualizationConfig.lineWidth
-          })
-        ];
-        
-      case 'geojson':
-        return [
-          new GeoJsonLayer({
-            id: 'geojson-layer',
-            data,
-            ...commonProps,
-            pointRadiusUnits: 'meters',
-            pointRadiusScale: visualizationConfig.radius,
-            pointRadiusMinPixels: visualizationConfig.pointRadiusMinPixels,
-            pointRadiusMaxPixels: visualizationConfig.pointRadiusMaxPixels,
-            getPointRadius: getRadius,
-            getFillColor: getColorFromField,
-            getLineColor: [0, 0, 0, 255],
-            getLineWidth: visualizationConfig.lineWidth,
-            lineWidthUnits: 'pixels',
-            stroked: visualizationConfig.stroked,
-            filled: visualizationConfig.filled,
-            extruded: visualizationConfig.extruded,
-            wireframe: visualizationConfig.wireframe,
-            getElevation: getElevation,
-            elevationScale: visualizationConfig.elevationScale
-          })
-        ];
-        
-      case 'heatmap':
-        return [
-          new HeatmapLayer({
-            id: 'heatmap-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getWeight: getWeight,
-            radiusPixels: visualizationConfig.radius,
-            colorRange: visualizationConfig.colorRange,
-            intensity: visualizationConfig.elevationScale,
-            threshold: 0.05,
-            aggregation: 'SUM'
-          })
-        ];
-        
-      case 'grid':
-        return [
-          new GridLayer({
-            id: 'grid-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getColorWeight: getWeight,
-            colorScale: getColorScale(),
-            colorRange: visualizationConfig.colorRange,
-            elevationRange: [0, visualizationConfig.elevationScale * 5000],
-            elevationScale: visualizationConfig.elevationScale,
-            extruded: visualizationConfig.extruded,
-            cellSize: visualizationConfig.cellSize,
-            coverage: visualizationConfig.coverage,
-            material: {
-              ambient: 0.4,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [30, 30, 30]
-            }
-          })
-        ];
-        
-      case 'hexagon':
-        return [
-          new HexagonLayer({
-            id: 'hexagon-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getColorWeight: getWeight,
-            colorScale: getColorScale(),
-            colorRange: visualizationConfig.colorRange,
-            elevationRange: [0, visualizationConfig.elevationScale * 5000],
-            elevationScale: visualizationConfig.elevationScale,
-            extruded: visualizationConfig.extruded,
-            radius: visualizationConfig.cellSize,
-            coverage: visualizationConfig.coverage,
-            material: {
-              ambient: 0.4,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [30, 30, 30]
-            }
-          })
-        ];
-        
-      case 'contour':
-        return [
-          new ContourLayer({
-            id: 'contour-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getWeight: getWeight,
-            cellSize: visualizationConfig.cellSize,
-            contours: [
-              { threshold: 0.1, color: [255, 255, 178, 200], strokeWidth: 2 },
-              { threshold: 0.25, color: [254, 204, 92, 200], strokeWidth: 2 },
-              { threshold: 0.5, color: [253, 141, 60, 200], strokeWidth: 2 },
-              { threshold: 0.75, color: [240, 59, 32, 200], strokeWidth: 2 },
-              { threshold: 0.9, color: [189, 0, 38, 200], strokeWidth: 2 }
-            ],
-            gpuAggregation: true,
-            aggregation: 'SUM'
-          })
-        ];
-        
-      case 'polygon':
-        return [
-          new SolidPolygonLayer({
-            id: 'polygon-layer',
-            data: isPolygon(data) ? data : convertToPolygons(data),
-            ...commonProps,
-            getPolygon: d => d.geometry.coordinates,
-            getFillColor: getColorFromField,
-            getLineColor: [0, 0, 0, 255],
-            extruded: visualizationConfig.extruded,
-            wireframe: visualizationConfig.wireframe,
-            getElevation: getElevation,
-            elevationScale: visualizationConfig.elevationScale,
-            material: {
-              ambient: 0.4,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [30, 30, 30]
-            }
-          })
-        ];
-        
-      case 'line':
-        return [
-          new LineLayer({
-            id: 'line-layer',
-            data: convertToLines(data),
-            ...commonProps,
-            getSourcePosition: d => d.geometry.coordinates[0],
-            getTargetPosition: d => d.geometry.coordinates[1],
-            getColor: getColorFromField,
-            getWidth: visualizationConfig.lineWidth,
-            widthUnits: 'pixels',
-            widthScale: 1,
-            widthMinPixels: 1,
-            widthMaxPixels: 10
-          })
-        ];
-        
-      case 'icon':
-        return [
-          new IconLayer({
-            id: 'icon-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getIcon: d => 'marker',
-            getSize: visualizationConfig.radius,
-            getColor: getColorFromField,
-            sizeUnits: 'pixels',
-            sizeScale: 1,
-            sizeMinPixels: 10,
-            sizeMaxPixels: 100,
-            iconAtlas: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
-            iconMapping: {
-              marker: {x: 0, y: 0, width: 128, height: 128, mask: true}
-            }
-          })
-        ];
-        
-      case 'text':
-        return [
-          new TextLayer({
-            id: 'text-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getText: d => {
-              if (visualizationConfig.textField) {
-                if (d.properties) {
-                  return String(d.properties[visualizationConfig.textField] || '');
-                } else {
-                  return String(d[visualizationConfig.textField] || '');
-                }
+      // Generate layers based on visualization type
+      switch (visualizationType) {
+        case 'scatterplot':
+          return [
+            new ScatterplotLayer({
+              id: 'scatterplot-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              radiusUnits: 'meters',
+              getPosition: getPosition,
+              getRadius: getRadius,
+              getFillColor: getColorFromField(data, visualizationConfig),
+              radiusScale: visualizationConfig.radius,
+              radiusMinPixels: visualizationConfig.pointRadiusMinPixels,
+              radiusMaxPixels: visualizationConfig.pointRadiusMaxPixels,
+              stroked: visualizationConfig.stroked,
+              lineWidthUnits: 'pixels',
+              getLineColor: [0, 0, 0, 255],
+              getLineWidth: visualizationConfig.lineWidth
+            })
+          ];
+          
+        case 'geojson':
+          return [
+            new GeoJsonLayer({
+              id: 'geojson-layer',
+              data,
+              ...commonProps,
+              pointRadiusUnits: 'meters',
+              pointRadiusScale: visualizationConfig.radius,
+              pointRadiusMinPixels: visualizationConfig.pointRadiusMinPixels,
+              pointRadiusMaxPixels: visualizationConfig.pointRadiusMaxPixels,
+              getPointRadius: getRadius,
+              getFillColor: getColorFromField(data, visualizationConfig),
+              getLineColor: [0, 0, 0, 255],
+              getLineWidth: visualizationConfig.lineWidth,
+              lineWidthUnits: 'pixels',
+              stroked: visualizationConfig.stroked,
+              filled: visualizationConfig.filled,
+              extruded: visualizationConfig.extruded,
+              wireframe: visualizationConfig.wireframe,
+              getElevation: getElevation,
+              elevationScale: visualizationConfig.elevationScale
+            })
+          ];
+          
+        case 'heatmap':
+          return [
+            new HeatmapLayer({
+              id: 'heatmap-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getWeight: getWeight,
+              radiusPixels: visualizationConfig.radius,
+              colorRange: visualizationConfig.colorRange,
+              intensity: visualizationConfig.elevationScale || 1,
+              threshold: 0.05,
+              aggregation: 'SUM'
+            })
+          ];
+          
+        case 'grid':
+          return [
+            new GridLayer({
+              id: 'grid-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getColorWeight: getWeight,
+              colorScale: getColorScale(),
+              colorRange: visualizationConfig.colorRange,
+              elevationRange: [0, visualizationConfig.elevationScale * 5000],
+              elevationScale: visualizationConfig.elevationScale,
+              extruded: visualizationConfig.extruded,
+              cellSize: visualizationConfig.cellSize,
+              coverage: visualizationConfig.coverage,
+              material: {
+                ambient: 0.4,
+                diffuse: 0.6,
+                shininess: 32,
+                specularColor: [30, 30, 30]
               }
-              return '';
-            },
-            getSize: visualizationConfig.radius,
-            getColor: getColorFromField,
-            getAngle: 0,
-            sizeUnits: 'pixels',
-            sizeScale: 1,
-            sizeMinPixels: 10,
-            sizeMaxPixels: 100,
-            fontFamily: 'Arial',
-            fontWeight: 'normal',
-            getTextAnchor: 'middle',
-            getAlignmentBaseline: 'center'
-          })
-        ];
-        
-      case 'screenGrid':
-        return [
-          new ScreenGridLayer({
-            id: 'screenGrid-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getWeight: getWeight,
-            cellSizePixels: visualizationConfig.radius,
-            colorRange: visualizationConfig.colorRange,
-            colorDomain: [0, 1],
-            gpuAggregation: true
-          })
-        ];
-        
-      case 'h3':
-        return [
-          new H3HexagonLayer({
-            id: 'h3-layer',
-            data: convertToH3Hexagons(data, visualizationConfig.cellSize),
-            ...commonProps,
-            getHexagon: d => d.hex,
-            getFillColor: getColorFromField,
-            extruded: visualizationConfig.extruded,
-            elevationScale: visualizationConfig.elevationScale,
-            getElevation: getElevation,
-            wireframe: visualizationConfig.wireframe,
-            material: {
-              ambient: 0.4,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [30, 30, 30]
-            }
-          })
-        ];
-        
-      case 'trip':
-        return [
-          new TripsLayer({
-            id: 'trip-layer',
-            data: visualizationConfig.timeAnimation ? convertToTimeTrips(data) : convertToPointFeatures(data),
-            ...commonProps,
-            getPath: d => d.path,
-            getTimestamps: d => d.timestamps,
-            getColor: getColorFromField,
-            widthMinPixels: 2,
-            rounded: true,
-            trailLength: visualizationConfig.trail,
-            currentTime: visualizationConfig.currentTime
-          })
-        ];
-        
-      case 'terrain':
-        return [
-          new TerrainLayer({
-            id: 'terrain-layer',
-            elevationDecoder: {
-              rScaler: 1,
-              gScaler: 0,
-              bScaler: 0,
-              offset: 0
-            },
-            ...getTerrainData(data, visualizationConfig),
-            material: {
-              ambient: 0.6,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [30, 30, 30]
-            }
-          })
-        ];
-        
-      default:
-        return [
-          new ScatterplotLayer({
-            id: 'default-scatterplot-layer',
-            data: convertToPointFeatures(data),
-            ...commonProps,
-            getPosition: getPosition,
-            getRadius: 100,
-            getFillColor: [67, 121, 237, 255]
-          })
-        ];
+            })
+          ];
+          
+        case 'hexagon':
+          return [
+            new HexagonLayer({
+              id: 'hexagon-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getColorWeight: getWeight,
+              colorScale: getColorScale(),
+              colorRange: visualizationConfig.colorRange,
+              elevationRange: [0, visualizationConfig.elevationScale * 5000],
+              elevationScale: visualizationConfig.elevationScale,
+              extruded: visualizationConfig.extruded,
+              radius: visualizationConfig.cellSize,
+              coverage: visualizationConfig.coverage,
+              material: {
+                ambient: 0.4,
+                diffuse: 0.6,
+                shininess: 32,
+                specularColor: [30, 30, 30]
+              }
+            })
+          ];
+          
+        case 'contour':
+          return [
+            new ContourLayer({
+              id: 'contour-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getWeight: getWeight,
+              cellSize: visualizationConfig.cellSize,
+              contours: [
+                { threshold: 0.1, color: [255, 255, 178, 200], strokeWidth: 2 },
+                { threshold: 0.25, color: [254, 204, 92, 200], strokeWidth: 2 },
+                { threshold: 0.5, color: [253, 141, 60, 200], strokeWidth: 2 },
+                { threshold: 0.75, color: [240, 59, 32, 200], strokeWidth: 2 },
+                { threshold: 0.9, color: [189, 0, 38, 200], strokeWidth: 2 }
+              ],
+              gpuAggregation: true,
+              aggregation: 'SUM'
+            })
+          ];
+          
+        case 'polygon':
+          return [
+            new SolidPolygonLayer({
+              id: 'polygon-layer',
+              data: isPolygon(data) ? data : convertToPolygons(data),
+              ...commonProps,
+              getPolygon: d => d.geometry?.coordinates || [],
+              getFillColor: getColorFromField(data, visualizationConfig),
+              getLineColor: [0, 0, 0, 255],
+              extruded: visualizationConfig.extruded,
+              wireframe: visualizationConfig.wireframe,
+              getElevation: getElevation,
+              elevationScale: visualizationConfig.elevationScale,
+              material: {
+                ambient: 0.4,
+                diffuse: 0.6,
+                shininess: 32,
+                specularColor: [30, 30, 30]
+              }
+            })
+          ];
+          
+        case 'line':
+          return [
+            new LineLayer({
+              id: 'line-layer',
+              data: convertToLines(data),
+              ...commonProps,
+              getSourcePosition: d => d.geometry?.coordinates?.[0] || [0, 0],
+              getTargetPosition: d => d.geometry?.coordinates?.[1] || [0, 0],
+              getColor: getColorFromField(data, visualizationConfig),
+              getWidth: visualizationConfig.lineWidth,
+              widthUnits: 'pixels',
+              widthScale: 1,
+              widthMinPixels: 1,
+              widthMaxPixels: 10
+            })
+          ];
+          
+        case 'icon':
+          return [
+            new IconLayer({
+              id: 'icon-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getIcon: d => 'marker',
+              getSize: visualizationConfig.radius,
+              getColor: getColorFromField(data, visualizationConfig),
+              sizeUnits: 'pixels',
+              sizeScale: 1,
+              sizeMinPixels: 10,
+              sizeMaxPixels: 100,
+              iconAtlas: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+              iconMapping: {
+                marker: {x: 0, y: 0, width: 128, height: 128, mask: true}
+              }
+            })
+          ];
+          
+        case 'text':
+          return [
+            new TextLayer({
+              id: 'text-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getText: d => {
+                if (visualizationConfig.textField) {
+                  if (d.properties) {
+                    return String(d.properties[visualizationConfig.textField] || '');
+                  } else {
+                    return String(d[visualizationConfig.textField] || '');
+                  }
+                }
+                return '';
+              },
+              getSize: visualizationConfig.radius,
+              getColor: getColorFromField(data, visualizationConfig),
+              getAngle: 0,
+              sizeUnits: 'pixels',
+              sizeScale: 1,
+              sizeMinPixels: 10,
+              sizeMaxPixels: 100,
+              fontFamily: 'Arial',
+              fontWeight: 'normal',
+              getTextAnchor: 'middle',
+              getAlignmentBaseline: 'center'
+            })
+          ];
+          
+        case 'screenGrid':
+          return [
+            new ScreenGridLayer({
+              id: 'screenGrid-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getWeight: getWeight,
+              cellSizePixels: visualizationConfig.radius,
+              colorRange: visualizationConfig.colorRange,
+              colorDomain: [0, 1],
+              gpuAggregation: true
+            })
+          ];
+          
+        case 'trip':
+          return [
+            new TripsLayer({
+              id: 'trip-layer',
+              data: visualizationConfig.timeAnimation ? convertToTimeTrips(data) : convertToPointFeatures(data),
+              ...commonProps,
+              getPath: d => d.path || [],
+              getTimestamps: d => d.timestamps || [],
+              getColor: getColorFromField(data, visualizationConfig),
+              widthMinPixels: 2,
+              rounded: true,
+              trailLength: visualizationConfig.trail,
+              currentTime: visualizationConfig.currentTime
+            })
+          ];
+          
+        default:
+          // Default fallback to scatterplot
+          return [
+            new ScatterplotLayer({
+              id: 'default-scatterplot-layer',
+              data: convertToPointFeatures(data),
+              ...commonProps,
+              getPosition: getPosition,
+              getRadius: visualizationConfig.radius || 100,
+              getFillColor: [67, 121, 237, 255]
+            })
+          ];
+      }
+    } catch (error) {
+      console.error('Error generating visualization layers:', error);
+      return []; // Return empty array on error
     }
   },
   
-  // Définir le type de visualisation
+  // Set visualization type
   setVisualizationType: (type) => {
+    if (!type) {
+      console.warn("Invalid visualization type provided");
+      return;
+    }
     set({ visualizationType: type });
   },
   
-  // Mettre à jour la configuration de visualisation
+  // Update visualization configuration
   updateVisualizationConfig: (config) => {
+    if (!config || typeof config !== 'object') {
+      console.warn("Invalid visualization config update");
+      return;
+    }
     set(state => ({
       visualizationConfig: {
         ...state.visualizationConfig,
@@ -502,31 +491,35 @@ const useDataState = create((set, get) => ({
     }));
   },
   
-  // Ajouter un filtre
+  // Add a filter
   addFilter: (field, operator, value) => {
+    if (!field || !operator) {
+      console.warn("Invalid filter: missing field or operator");
+      return;
+    }
     set(state => ({
       filters: [...state.filters, { field, operator, value }]
     }));
   },
   
-  // Supprimer un filtre
+  // Remove a filter
   removeFilter: (index) => {
     set(state => ({
       filters: state.filters.filter((_, i) => i !== index)
     }));
   },
   
-  // Supprimer tous les filtres
+  // Clear all filters
   clearFilters: () => {
     set({ filters: [] });
   },
   
-  // Sélectionner un jeu de données
+  // Select a dataset
   selectDataset: (datasetId) => {
     set({ selectedDataset: datasetId });
   },
   
-  // Supprimer un jeu de données
+  // Remove a dataset
   removeDataset: (datasetId) => {
     set(state => ({
       datasets: state.datasets.filter(d => d.id !== datasetId),
@@ -535,365 +528,415 @@ const useDataState = create((set, get) => ({
   }
 }));
 
-// Fonction utilitaire pour convertir différents formats vers des points
+// Helper function to get color based on field and scale
+function getColorFromField(data, config) {
+  return (d) => {
+    if (!config.colorField) {
+      // Fixed color
+      return config.color || [100, 100, 100, 255];
+    }
+    
+    // Get value from the feature
+    let value = 0;
+    
+    if (d.properties && d.properties[config.colorField] !== undefined) {
+      value = d.properties[config.colorField];
+    } else if (d[config.colorField] !== undefined) {
+      value = d[config.colorField];
+    }
+    
+    if (value === undefined || value === null || isNaN(value)) {
+      return config.color || [100, 100, 100, 255];
+    }
+    
+    // Get min/max values from the data
+    const { min, max } = getFieldMinMax(config.colorField, data);
+    
+    // Normalize value to 0-1 range
+    const normalizedValue = (value - min) / (max - min) || 0;
+    
+    // Apply reverse if needed
+    const scaledValue = config.reverseColorScale ? 1 - normalizedValue : normalizedValue;
+    
+    // Get color from the color range
+    const colors = config.colorRange || [
+      [239, 243, 255],
+      [198, 219, 239],
+      [158, 202, 225],
+      [107, 174, 214],
+      [66, 146, 198],
+      [33, 113, 181],
+      [8, 81, 156],
+      [8, 48, 107]
+    ];
+    
+    const colorIndex = Math.min(
+      Math.floor(scaledValue * colors.length),
+      colors.length - 1
+    );
+    
+    return [...colors[colorIndex], 255];
+  };
+}
+
+// Utility function to convert various formats to points
 function convertToPointFeatures(data) {
   if (!data) return [];
   
-  // Si c'est déjà un GeoJSON FeatureCollection
-  if (data.type === 'FeatureCollection') {
-    // Filtrer les points et convertir les autres géométries en points
-    return data.features.map(feature => {
-      if (feature.geometry.type === 'Point') {
-        return feature;
-      } else {
-        // Convertir d'autres géométries en points (centroid)
-        const centroid = turf.centroid(feature);
+  try {
+    // If it's already a GeoJSON FeatureCollection
+    if (data.type === 'FeatureCollection') {
+      // Filter points and convert other geometries to points
+      return data.features.map(feature => {
+        if (!feature.geometry) {
+          // Skip invalid features
+          return null;
+        }
+        
+        if (feature.geometry.type === 'Point') {
+          return feature;
+        } else {
+          // Convert other geometries to points (centroid)
+          try {
+            const centroid = turf.centroid(feature);
+            return {
+              ...centroid,
+              properties: feature.properties
+            };
+          } catch (error) {
+            console.warn("Error converting to centroid:", error);
+            return null;
+          }
+        }
+      }).filter(Boolean); // Remove null entries
+    }
+    
+    // If it's an array of objects with lat/lng
+    if (Array.isArray(data)) {
+      return data.map(item => {
+        const coords = [];
+        
+        // Determine coordinates based on available properties
+        if (item.latitude !== undefined && item.longitude !== undefined) {
+          coords[0] = item.longitude;
+          coords[1] = item.latitude;
+        } else if (item.lat !== undefined && item.lng !== undefined) {
+          coords[0] = item.lng;
+          coords[1] = item.lat;
+        } else if (item.lat !== undefined && item.lon !== undefined) {
+          coords[0] = item.lon;
+          coords[1] = item.lat;
+        } else if (item.y !== undefined && item.x !== undefined) {
+          coords[0] = item.x;
+          coords[1] = item.y;
+        }
+        
+        // Skip if no valid coordinates found
+        if (coords.length !== 2 || isNaN(coords[0]) || isNaN(coords[1])) {
+          return null;
+        }
+        
+        // Create a GeoJSON feature
         return {
-          ...centroid,
-          properties: feature.properties
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: coords
+          },
+          properties: { ...item }
         };
-      }
-    });
-  }
-  
-  // Si c'est un tableau d'objets avec lat/lng
-  if (Array.isArray(data)) {
-    return data.map(item => {
-      const coords = [];
-      
-      // Déterminer les coordonnées selon les propriétés disponibles
-      if (item.latitude !== undefined && item.longitude !== undefined) {
-        coords[0] = item.longitude;
-        coords[1] = item.latitude;
-      } else if (item.lat !== undefined && item.lng !== undefined) {
-        coords[0] = item.lng;
-        coords[1] = item.lat;
-      } else if (item.lat !== undefined && item.lon !== undefined) {
-        coords[0] = item.lon;
-        coords[1] = item.lat;
-      } else if (item.y !== undefined && item.x !== undefined) {
-        coords[0] = item.x;
-        coords[1] = item.y;
-      }
-      
-      // Créer une feature GeoJSON
-      return {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: coords
-        },
-        properties: { ...item }
-      };
-    });
+      }).filter(Boolean); // Remove null entries
+    }
+  } catch (error) {
+    console.error("Error converting to point features:", error);
   }
   
   return [];
 }
 
-// Fonction pour vérifier si les données sont des polygones
+// Check if data contains polygons
 function isPolygon(data) {
   if (!data) return false;
   
   if (data.type === 'FeatureCollection') {
     return data.features.some(feature => 
-      feature.geometry.type === 'Polygon' || 
-      feature.geometry.type === 'MultiPolygon'
+      feature.geometry &&
+      (feature.geometry.type === 'Polygon' || 
+       feature.geometry.type === 'MultiPolygon')
     );
   }
   
   return false;
 }
 
-// Fonction pour convertir les données en polygones
+// Convert data to polygons
 function convertToPolygons(data) {
   if (!data) return [];
   
-  // Si c'est déjà un GeoJSON FeatureCollection
-  if (data.type === 'FeatureCollection') {
-    // Filtrer pour ne garder que les polygones
-    return data.features.filter(feature => 
-      feature.geometry.type === 'Polygon' || 
-      feature.geometry.type === 'MultiPolygon'
-    );
+  try {
+    // If it's already a GeoJSON FeatureCollection
+    if (data.type === 'FeatureCollection') {
+      // Filter to keep only polygons
+      return data.features.filter(feature => 
+        feature.geometry && 
+        (feature.geometry.type === 'Polygon' || 
+         feature.geometry.type === 'MultiPolygon')
+      );
+    }
+  } catch (error) {
+    console.error("Error converting to polygons:", error);
   }
   
   return [];
 }
 
-// Fonction pour convertir les données en lignes
+// Convert data to lines
 function convertToLines(data) {
   if (!data) return [];
   
-  // Si c'est déjà un GeoJSON FeatureCollection
-  if (data.type === 'FeatureCollection') {
-    // Filtrer pour ne garder que les lignes
-    const lineFeatures = data.features.filter(feature => 
-      feature.geometry.type === 'LineString' || 
-      feature.geometry.type === 'MultiLineString'
-    );
-    
-    // Pour les autres types, créer des lignes
-    const pointFeatures = data.features.filter(feature => 
-      feature.geometry.type === 'Point'
-    );
-    
-    if (pointFeatures.length >= 2) {
-      // Créer des lignes entre points consécutifs
-      const lines = [];
-      for (let i = 0; i < pointFeatures.length - 1; i++) {
-        const start = pointFeatures[i].geometry.coordinates;
-        const end = pointFeatures[i + 1].geometry.coordinates;
-        
-        lines.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: [start, end]
-          },
-          properties: {
-            ...pointFeatures[i].properties,
-            startPoint: pointFeatures[i].properties,
-            endPoint: pointFeatures[i + 1].properties
+  try {
+    // If it's already a GeoJSON FeatureCollection
+    if (data.type === 'FeatureCollection') {
+      // Filter to keep only lines
+      const lineFeatures = data.features.filter(feature => 
+        feature.geometry && 
+        (feature.geometry.type === 'LineString' || 
+         feature.geometry.type === 'MultiLineString')
+      );
+      
+      // For other types, create lines
+      const pointFeatures = data.features.filter(feature => 
+        feature.geometry && feature.geometry.type === 'Point'
+      );
+      
+      if (pointFeatures.length >= 2) {
+        // Create lines between consecutive points
+        const lines = [];
+        for (let i = 0; i < pointFeatures.length - 1; i++) {
+          const start = pointFeatures[i].geometry.coordinates;
+          const end = pointFeatures[i + 1].geometry.coordinates;
+          
+          // Skip if invalid coordinates
+          if (!start || !end || start.length < 2 || end.length < 2) {
+            continue;
           }
-        });
-      }
-      
-      return [...lineFeatures, ...lines];
-    }
-    
-    return lineFeatures;
-  }
-  
-  // Pour les données tabulaires, essayer de créer des lignes
-  if (Array.isArray(data) && data.length >= 2) {
-    // Ordonner les points par un champ de temps ou d'ordre s'il existe
-    const sortedData = [...data].sort((a, b) => {
-      if (a.time && b.time) return a.time - b.time;
-      if (a.timestamp && b.timestamp) return a.timestamp - b.timestamp;
-      if (a.order && b.order) return a.order - b.order;
-      return 0;
-    });
-    
-    // Créer des lignes entre points consécutifs
-    const lines = [];
-    for (let i = 0; i < sortedData.length - 1; i++) {
-      const startCoords = [
-        sortedData[i].longitude || sortedData[i].lng || sortedData[i].lon || sortedData[i].x,
-        sortedData[i].latitude || sortedData[i].lat || sortedData[i].y
-      ];
-      
-      const endCoords = [
-        sortedData[i+1].longitude || sortedData[i+1].lng || sortedData[i+1].lon || sortedData[i+1].x,
-        sortedData[i+1].latitude || sortedData[i+1].lat || sortedData[i+1].y
-      ];
-      
-      lines.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [startCoords, endCoords]
-        },
-        properties: {
-          ...sortedData[i],
-          startPoint: sortedData[i],
-          endPoint: sortedData[i+1]
+          
+          lines.push({
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: [start, end]
+            },
+            properties: {
+              ...pointFeatures[i].properties,
+              startPoint: pointFeatures[i].properties,
+              endPoint: pointFeatures[i + 1].properties
+            }
+          });
         }
-      });
-    }
-    
-    return lines;
-  }
-  
-  return [];
-}
-
-// Convertir les données pour la visualisation temporelle
-function convertToTimeTrips(data) {
-  if (!data) return [];
-  
-  // Si c'est un GeoJSON, convertir les lignes ou points en trips
-  if (data.type === 'FeatureCollection') {
-    const points = data.features.filter(f => f.geometry.type === 'Point');
-    
-    if (points.length < 2) return [];
-    
-    // Ordonner les points par un champ de temps
-    const sortedPoints = [...points].sort((a, b) => {
-      if (a.properties.time && b.properties.time) return a.properties.time - b.properties.time;
-      if (a.properties.timestamp && b.properties.timestamp) return a.properties.timestamp - b.properties.timestamp;
-      if (a.properties.order && b.properties.order) return a.properties.order - b.properties.order;
-      return 0;
-    });
-    
-    // Créer un trip
-    const path = sortedPoints.map(point => point.geometry.coordinates);
-    const timestamps = sortedPoints.map((point, index) => {
-      if (point.properties.time) return point.properties.time;
-      if (point.properties.timestamp) return point.properties.timestamp;
-      // Créer une séquence temporelle arbitraire si aucune donnée de temps n'est disponible
-      return index * 10;
-    });
-    
-    return [{
-      path,
-      timestamps,
-      properties: sortedPoints[0].properties
-    }];
-  }
-  
-  // Pour les données tabulaires
-  if (Array.isArray(data) && data.length >= 2) {
-    // Grouper par trajectoire si un ID de trajectoire est présent
-    const trajectoryGroups = {};
-    
-    data.forEach(point => {
-      const trajectoryId = point.trajectoryId || point.trip_id || point.id || 'default';
-      
-      if (!trajectoryGroups[trajectoryId]) {
-        trajectoryGroups[trajectoryId] = [];
+        
+        return [...lineFeatures, ...lines];
       }
       
-      trajectoryGroups[trajectoryId].push(point);
-    });
+      return lineFeatures;
+    }
     
-    // Convertir chaque groupe en une trajectoire
-    return Object.values(trajectoryGroups).map(points => {
-      // Trier par temps
-      const sortedPoints = [...points].sort((a, b) => {
+    // For tabular data, try to create lines
+    if (Array.isArray(data) && data.length >= 2) {
+      // Sort points by time or order field if it exists
+      const sortedData = [...data].sort((a, b) => {
         if (a.time && b.time) return a.time - b.time;
         if (a.timestamp && b.timestamp) return a.timestamp - b.timestamp;
         if (a.order && b.order) return a.order - b.order;
         return 0;
       });
       
-      // Extraire le chemin et les horodatages
-      const path = sortedPoints.map(point => [
-        point.longitude || point.lng || point.lon || point.x,
-        point.latitude || point.lat || point.y
-      ]);
+      // Create lines between consecutive points
+      const lines = [];
+      for (let i = 0; i < sortedData.length - 1; i++) {
+        const startCoords = [
+          sortedData[i].longitude || sortedData[i].lng || sortedData[i].lon || sortedData[i].x,
+          sortedData[i].latitude || sortedData[i].lat || sortedData[i].y
+        ];
+        
+        const endCoords = [
+          sortedData[i+1].longitude || sortedData[i+1].lng || sortedData[i+1].lon || sortedData[i+1].x,
+          sortedData[i+1].latitude || sortedData[i+1].lat || sortedData[i+1].y
+        ];
+        
+        // Skip if invalid coordinates
+        if (startCoords.some(isNaN) || endCoords.some(isNaN)) {
+          continue;
+        }
+        
+        lines.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: [startCoords, endCoords]
+          },
+          properties: {
+            ...sortedData[i],
+            startPoint: sortedData[i],
+            endPoint: sortedData[i+1]
+          }
+        });
+      }
       
-      const timestamps = sortedPoints.map((point, index) => {
-        if (point.time) return point.time;
-        if (point.timestamp) return point.timestamp;
-        return index * 10;
-      });
-      
-      return {
-        path,
-        timestamps,
-        properties: { ...sortedPoints[0] }
-      };
-    });
+      return lines;
+    }
+  } catch (error) {
+    console.error("Error converting to lines:", error);
   }
   
   return [];
 }
 
-// Convertir les données en hexagones H3
-function convertToH3Hexagons(data, resolution = 8) {
+// Convert data for time trips visualization
+function convertToTimeTrips(data) {
   if (!data) return [];
   
-  const h3Bins = {};
-  const points = convertToPointFeatures(data);
-  
-  // Agrégation des points dans des bins H3
-  points.forEach(point => {
-    const coords = point.geometry.coordinates;
-    if (!coords || coords.length < 2) return;
-    
-    // Convertir les coordonnées en index H3
-    const h3Index = turf.point(coords);
-    const hexId = h3Index.properties.hex;
-    
-    if (!h3Bins[hexId]) {
-      h3Bins[hexId] = {
-        hex: hexId,
-        count: 0,
-        properties: {}
-      };
-    }
-    
-    h3Bins[hexId].count += 1;
-    
-    // Agréger les propriétés numériques
-    if (point.properties) {
-      Object.entries(point.properties).forEach(([key, value]) => {
-        if (typeof value === 'number') {
-          if (!h3Bins[hexId].properties[key]) {
-            h3Bins[hexId].properties[key] = 0;
-          }
-          h3Bins[hexId].properties[key] += value;
-        }
+  try {
+    // If it's a GeoJSON, convert lines or points to trips
+    if (data.type === 'FeatureCollection') {
+      const points = data.features.filter(f => f.geometry && f.geometry.type === 'Point');
+      
+      if (points.length < 2) return [];
+      
+      // Sort points by time field
+      const sortedPoints = [...points].sort((a, b) => {
+        if (a.properties?.time && b.properties?.time) return a.properties.time - b.properties.time;
+        if (a.properties?.timestamp && b.properties?.timestamp) return a.properties.timestamp - b.properties.timestamp;
+        if (a.properties?.order && b.properties?.order) return a.properties.order - b.properties.order;
+        return 0;
       });
+      
+      // Create a trip
+      const path = sortedPoints.map(point => point.geometry.coordinates);
+      const timestamps = sortedPoints.map((point, index) => {
+        if (point.properties?.time) return point.properties.time;
+        if (point.properties?.timestamp) return point.properties.timestamp;
+        // Create an arbitrary time sequence if no time data is available
+        return index * 10;
+      });
+      
+      return [{
+        path,
+        timestamps,
+        properties: sortedPoints[0].properties || {}
+      }];
     }
-  });
+    
+    // For tabular data
+    if (Array.isArray(data) && data.length >= 2) {
+      // Group by trajectory if a trajectory ID is present
+      const trajectoryGroups = {};
+      
+      data.forEach(point => {
+        const trajectoryId = point.trajectoryId || point.trip_id || point.id || 'default';
+        
+        if (!trajectoryGroups[trajectoryId]) {
+          trajectoryGroups[trajectoryId] = [];
+        }
+        
+        trajectoryGroups[trajectoryId].push(point);
+      });
+      
+      // Convert each group to a trajectory
+      return Object.values(trajectoryGroups).map(points => {
+        // Sort by time
+        const sortedPoints = [...points].sort((a, b) => {
+          if (a.time && b.time) return a.time - b.time;
+          if (a.timestamp && b.timestamp) return a.timestamp - b.timestamp;
+          if (a.order && b.order) return a.order - b.order;
+          return 0;
+        });
+        
+        // Skip if not enough points
+        if (sortedPoints.length < 2) return null;
+        
+        // Extract path and timestamps
+        const path = sortedPoints.map(point => {
+          const lon = point.longitude || point.lng || point.lon || point.x;
+          const lat = point.latitude || point.lat || point.y;
+          return [lon, lat].filter(coord => !isNaN(coord));
+        }).filter(coords => coords.length === 2);
+        
+        // Skip if not enough valid coordinates
+        if (path.length < 2) return null;
+        
+        const timestamps = sortedPoints.map((point, index) => {
+          if (point.time) return point.time;
+          if (point.timestamp) return point.timestamp;
+          return index * 10;
+        });
+        
+        return {
+          path,
+          timestamps,
+          properties: { ...sortedPoints[0] }
+        };
+      }).filter(Boolean); // Remove null entries
+    }
+  } catch (error) {
+    console.error("Error converting to time trips:", error);
+  }
   
-  return Object.values(h3Bins);
+  return [];
 }
 
-// Fonction pour préparer les données de terrain
-function getTerrainData(data, config) {
-  // Dans une application réelle, cette fonction convertirait les données
-  // en un format compatible avec TerrainLayer. Pour simplifier, on retourne
-  // une configuration basique.
-  return {
-    terrain: {
-      // mesh: terrain data
-      // texture: terrain texture
-    },
-    // Autres propriétés spécifiques au terrain
-  };
-}
-
-// Obtenir les valeurs min/max pour un champ
+// Get min/max values for a field
 function getFieldMinMax(field, data) {
   let min = Infinity;
   let max = -Infinity;
   
   if (!data || !field) return { min: 0, max: 1 };
   
-  // Pour les collections de features GeoJSON
-  if (data.type === 'FeatureCollection' && data.features) {
-    data.features.forEach(feature => {
-      if (feature.properties && feature.properties[field] !== undefined) {
-        const value = Number(feature.properties[field]);
-        if (!isNaN(value)) {
-          min = Math.min(min, value);
-          max = Math.max(max, value);
+  try {
+    // For GeoJSON feature collections
+    if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+      data.features.forEach(feature => {
+        if (feature.properties && feature.properties[field] !== undefined) {
+          const value = Number(feature.properties[field]);
+          if (!isNaN(value)) {
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+          }
         }
-      }
-    });
-  } 
-  // Pour les tableaux d'objets
-  else if (Array.isArray(data)) {
-    data.forEach(item => {
-      if (item[field] !== undefined) {
-        const value = Number(item[field]);
-        if (!isNaN(value)) {
-          min = Math.min(min, value);
-          max = Math.max(max, value);
+      });
+    } 
+    // For arrays of objects
+    else if (Array.isArray(data)) {
+      data.forEach(item => {
+        if (item[field] !== undefined) {
+          const value = Number(item[field]);
+          if (!isNaN(value)) {
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+          }
         }
-      }
-    });
+      });
+    }
+  } catch (error) {
+    console.error("Error calculating field min/max:", error);
   }
   
-  // Valeurs par défaut si aucune donnée valide
-  if (min === Infinity || max === -Infinity) {
+  // Default values if no valid data
+  if (min === Infinity || max === -Infinity || min === max) {
     return { min: 0, max: 1 };
   }
   
   return { min, max };
 }
 
-// Fonctions auxiliaires pour deck.gl layers
+// Helper functions for deck.gl layers
 function getPosition(d) {
-  // Pour les features GeoJSON
+  // For GeoJSON features
   if (d.geometry && d.geometry.type === 'Point') {
     return d.geometry.coordinates;
   }
   
-  // Pour les données tabulaires
+  // For tabular data
   return [
     d.longitude || d.lng || d.lon || d.x || 0,
     d.latitude || d.lat || d.y || 0,
@@ -902,74 +945,102 @@ function getPosition(d) {
 }
 
 function getRadius(d) {
-  const config = useDataState.getState().visualizationConfig;
-  
-  if (config.sizeField) {
-    let value = 0;
+  try {
+    const config = useDataState.getState().visualizationConfig;
     
-    if (d.properties && d.properties[config.sizeField] !== undefined) {
-      value = d.properties[config.sizeField];
-    } else if (d[config.sizeField] !== undefined) {
-      value = d[config.sizeField];
+    if (config.sizeField) {
+      let value = 0;
+      
+      if (d.properties && d.properties[config.sizeField] !== undefined) {
+        value = d.properties[config.sizeField];
+      } else if (d[config.sizeField] !== undefined) {
+        value = d[config.sizeField];
+      }
+      
+      if (isNaN(value)) return config.radius || 5;
+      
+      // Normalize based on field min/max
+      const dataset = useDataState.getState().datasets.find(
+        dataset => dataset.id === useDataState.getState().selectedDataset
+      );
+      
+      if (!dataset) return config.radius || 5;
+      
+      const { min, max } = getFieldMinMax(config.sizeField, dataset.data);
+      if (min === max) return config.radius || 5;
+      
+      const normalizedValue = (value - min) / (max - min);
+      return (config.radius || 5) * (0.1 + normalizedValue * 0.9);
     }
-    
-    // Normaliser selon le min/max du champ
-    const { min, max } = getFieldMinMax(config.sizeField, useDataState.getState().datasets.find(
-      dataset => dataset.id === useDataState.getState().selectedDataset
-    )?.data);
-    
-    const normalizedValue = (value - min) / (max - min);
-    return config.radius * (0.1 + normalizedValue * 0.9);
+  } catch (error) {
+    console.error("Error calculating radius:", error);
   }
   
-  return config.radius;
+  // Default value
+  return useDataState.getState().visualizationConfig.radius || 5;
 }
 
 function getElevation(d) {
-  const config = useDataState.getState().visualizationConfig;
-  
-  if (config.heightField) {
-    let value = 0;
+  try {
+    const config = useDataState.getState().visualizationConfig;
     
-    if (d.properties && d.properties[config.heightField] !== undefined) {
-      value = d.properties[config.heightField];
-    } else if (d[config.heightField] !== undefined) {
-      value = d[config.heightField];
+    if (config.heightField) {
+      let value = 0;
+      
+      if (d.properties && d.properties[config.heightField] !== undefined) {
+        value = d.properties[config.heightField];
+      } else if (d[config.heightField] !== undefined) {
+        value = d[config.heightField];
+      }
+      
+      if (isNaN(value)) return 0;
+      return value * (config.elevationScale || 1);
     }
-    
-    return value * config.elevationScale;
+  } catch (error) {
+    console.error("Error calculating elevation:", error);
   }
   
   return 0;
 }
 
 function getWeight(d) {
-  const config = useDataState.getState().visualizationConfig;
-  
-  if (config.weightField) {
-    if (d.properties && d.properties[config.weightField] !== undefined) {
-      return d.properties[config.weightField];
-    } else if (d[config.weightField] !== undefined) {
-      return d[config.weightField];
+  try {
+    const config = useDataState.getState().visualizationConfig;
+    
+    if (config.weightField) {
+      if (d.properties && d.properties[config.weightField] !== undefined) {
+        const value = Number(d.properties[config.weightField]);
+        return isNaN(value) ? 1 : value;
+      } else if (d[config.weightField] !== undefined) {
+        const value = Number(d[config.weightField]);
+        return isNaN(value) ? 1 : value;
+      }
     }
+  } catch (error) {
+    console.error("Error calculating weight:", error);
   }
   
   return 1;
 }
 
 function getColorScale() {
-  const config = useDataState.getState().visualizationConfig;
-  
-  // Différentes échelles selon la méthode de classification
-  switch (config.classificationMethod) {
-    case 'quantile':
-      return 'quantile';
-    case 'equal':
-      return 'quantize';
-    case 'jenks':
-      return 'quantize'; // Approximation
-    default:
-      return 'quantize';
+  try {
+    const config = useDataState.getState().visualizationConfig;
+    
+    // Different scales based on classification method
+    switch (config.classificationMethod) {
+      case 'quantile':
+        return 'quantile';
+      case 'equal':
+        return 'quantize';
+      case 'jenks':
+        return 'quantize'; // Approximation
+      default:
+        return 'quantize';
+    }
+  } catch (error) {
+    console.error("Error getting color scale:", error);
+    return 'quantize';
   }
 }
 
