@@ -130,7 +130,12 @@ export default function Home() {
   const handleDataImported = (newData) => {
     try {
       const { addData } = useDataState.getState();
-      const dataName = 'Données importées';
+      const dataName = newData.name || 'Données importées';
+      
+      // Ajout d'une vérification des données
+      if (!newData || !newData.features) {
+        throw new Error('Format de données invalide');
+      }
       
       addData(newData, dataName);
       
@@ -139,7 +144,6 @@ export default function Home() {
         message: `${dataName} importées avec succès`
       });
       
-      // Close the import dialog
       setShowImport(false);
     } catch (error) {
       console.error('Error importing data:', error);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
-import { nanoid } from 'nanoid';
+import { nanoid } from 'nanoid/non-secure';
 import useLayerManager from '../hooks/useLayerManager';
 import useMapState from '../hooks/useMapState';
 import useDataState from '../hooks/useDataState';

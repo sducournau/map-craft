@@ -274,6 +274,22 @@ export const deleteProject = (projectId) => {
  */
 export const saveDataset = (dataset) => {
   return new Promise((resolve, reject) => {
+    if (!isIndexedDBAvailable()) {
+      // Mode fallback: utiliser localStorage
+      try {
+        const key = `dataset_${Date.now()}`;
+        const datasetToSave = { 
+          ...dataset,
+          id: dataset.id || key,
+          importDate: dataset.importDate || new Date().toISOString()
+        };
+        localStorage.setItem(key, JSON.stringify(datasetToSave));
+        resolve(datasetToSave.id);
+      } catch (err) {
+        reject(new Error(`Fallback storage error: ${err.message}`));
+      }
+      return;
+    }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     
     // Gérer la création/mise à jour de la structure de la base de données

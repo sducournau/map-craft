@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <rect width="48" height="48" rx="6" fill="#ffebee" />
+  <rect x="8" y="8" width="32" height="32" rx="2" fill="#ffffff" stroke="#f44336" stroke-width="1.5" />
+  <path d="M12 20 L26 20 L36 10 L36 36 L12 36 Z" fill="#ffcdd2" />
+  <text x="12" y="16" font-family="Arial" font-size="4" fill="#f44336">MapCraft</text>
+  <circle cx="24" cy="28" r="6" fill="#f44336" fillOpacity="0.7" />
+  <path d="M24 28 L28 20" stroke="#f44336" stroke-width="1.5" />
+</svg>

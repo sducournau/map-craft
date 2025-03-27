@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { nanoid } from 'nanoid';
+import { nanoid } from 'nanoid/non-secure';
 import * as turf from '@turf/turf';
 import { 
   ScatterplotLayer, 
