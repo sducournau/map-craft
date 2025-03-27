@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { Box, CircularProgress } from '@mui/material';
 import useMapState from '../hooks/useMapState.js';
 import useDataState from '../hooks/useDataState.js';
-import generateSampleData from '../utils/dataFormatters.js';
+import { generateSampleData } from '../utils/dataFormatters.js';
 
 // Lazy load components
 const DeckGLMap = lazy(() => import('../components/Map/DeckGLMap'));
