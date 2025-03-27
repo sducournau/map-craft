@@ -89,14 +89,14 @@ export default function Home() {
   const [showExport, setShowExport] = useState(false);
   const [notification, setNotification] = useState(null);
   
+  // Initialize the ref at the component level, not inside useEffect
+  const loadingAttempted = React.useRef(false);
+  
   // Generate layers for deck.gl
   const mapLayers = getVisualizationLayers();
   
   // Load sample data after initial render
   useEffect(() => {
-    // Add a ref to track if the effect has run
-    const loadingAttempted = React.useRef(false);
-    
     if (!isDataLoaded && typeof window !== 'undefined' && !loadingAttempted.current) {
       loadingAttempted.current = true;
       
