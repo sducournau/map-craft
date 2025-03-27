@@ -12,11 +12,19 @@ export default function DataPanel({
   opacity,
   setOpacity,
   radius,
-  setRadius
+  setRadius,
+  viewState = {
+    longitude: 2.3522,
+    latitude: 46.2276,
+    zoom: 5,
+    pitch: 0,
+    bearing: 0
+  }
 }) {
   return (
     <div className={styles.dataPanel}>
       <h3>Configuration</h3>
+
       
       <div className={styles.row}>
         <label htmlFor="visualizationType">Type de visualisation:</label>
@@ -111,4 +119,4 @@ export default function DataPanel({
       )}
     </div>
   );
-}
+};

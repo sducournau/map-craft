@@ -1,12 +1,13 @@
+// components/Map/DeckGLMap.jsx
 import React, { useState, useMemo } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import { Map } from 'react-map-gl';
-import styles from '../../styles/DeckGLMap.module.css';
+import { Box } from '@mui/material';
 
-export default function DeckGLMap({ layers, viewState, onViewStateChange }) {
+function DeckGLMap({ layers, viewState, onViewStateChange }) {
   const [hoverInfo, setHoverInfo] = useState(null);
   
-  // Paramètres de configuration pour deck.gl
+  // Memoize deck.gl props to prevent unnecessary re-renders
   const deckProps = useMemo(() => ({
     layers,
     viewState,
@@ -33,19 +34,20 @@ export default function DeckGLMap({ layers, viewState, onViewStateChange }) {
       }
     },
     controller: true,
-    // Paramètres de picking pour l'interaction utilisateur
     pickingRadius: 5,
     onHover: info => setHoverInfo(info.object ? info : null)
   }), [layers, viewState, onViewStateChange]);
 
   return (
-    <div className={styles.mapWrapper}>
+    <Box sx={{ position: 'absolute', width: '100%', height: '100%' }}>
       <DeckGL {...deckProps}>
         <Map 
           mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
           preventStyleDiffing={true}
         />
       </DeckGL>
-    </div>
+    </Box>
   );
 }
+
+export default React.memo(DeckGLMap);

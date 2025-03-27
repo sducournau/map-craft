@@ -4,7 +4,7 @@ import { useState } from 'react';
  * Hook personnalisé pour gérer l'état de la carte (viewState)
  * @returns {Object} État de la carte et fonctions associées
  */
-export function useMapState() {
+const useMapState = () => {
   // État initial de la carte centré sur la France
   const [viewState, setViewState] = useState({
     longitude: 2.3522,  // Coordonnées de Paris
@@ -55,3 +55,5 @@ export function useMapState() {
     resetView
   };
 }
+
+export default useMapState;

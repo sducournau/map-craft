@@ -1,13 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Head from 'next/head';
-import DeckGLMap from '../components/Map/DeckGLMap';
-import Sidebar from '../components/UI/Sidebar';
-import DataPanel from '../components/UI/DataPanel';
-import MapControls from '../components/Map/MapControls';
-import { useMapState } from '../hooks/useMapState';
+import { Box, CircularProgress } from '@mui/material';
+import useMapState from '../hooks/useMapState';
 import { useDataState } from '../hooks/useDataState';
 import { generateSampleData } from '../utils/dataFormatters';
-import styles from '../styles/Home.module.css';
+
+// Lazy load components
+const DeckGLMap = lazy(() => import('../components/Map/DeckGLMap'));
+const Sidebar = lazy(() => import('../components/UI/Sidebar'));
+const DataPanel = lazy(() => import('../components/UI/DataPanel'));
+const MapControls = lazy(() => import('../components/Map/MapControls'));
+
+// Loading fallback
+const Loading = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+    <CircularProgress />
+  </Box>
+);
 
 export default function Home() {
   const { viewState, setViewState } = useMapState();
@@ -35,6 +44,7 @@ export default function Home() {
     setData(sampleData);
   }, [setData]);
   
+  // Handle imported data
   const handleDataImported = (newData) => {
     setData(newData);
     
@@ -50,9 +60,9 @@ export default function Home() {
       }
     }
   };
-
+  
   return (
-    <div className={styles.container}>
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Head>
         <title>MapCraft - Éditeur Cartographique</title>
         <meta name="description" content="Éditeur cartographique PWA avec deck.gl" />
@@ -60,15 +70,15 @@ export default function Home() {
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1a202c" />
       </Head>
-
-      <main className={styles.main}>
+      
+      <Suspense fallback={<Loading />}>
         <Sidebar 
           open={sidebarOpen} 
           setOpen={setSidebarOpen} 
           onDataImported={handleDataImported} 
         />
         
-        <div className={styles.mapContainer}>
+        <Box sx={{ flexGrow: 1, position: 'relative', overflow: 'hidden' }}>
           <DeckGLMap
             layers={layers}
             viewState={viewState}
@@ -92,8 +102,8 @@ export default function Home() {
             radius={radius}
             setRadius={setRadius}
           />
-        </div>
-      </main>
-    </div>
+        </Box>
+      </Suspense>
+    </Box>
   );
 }

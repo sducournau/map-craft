@@ -1,9 +1,14 @@
+// pages/_app.js
 import '../styles/globals.css';
 import Head from 'next/head';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from '../utils/theme';
 
 function MyApp({ Component, pageProps }) {
   return (
-    <>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       <Head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -15,7 +20,7 @@ function MyApp({ Component, pageProps }) {
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </Head>
       <Component {...pageProps} />
-    </>
+    </ThemeProvider>
   );
 }
 

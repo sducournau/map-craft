@@ -18,7 +18,7 @@ import {
   FiArrowUpRight,
   FiArrowDownRight
 } from 'react-icons/fi';
-import { useLayerManager } from '@/hooks/useLayerManager';
+import useLayerManager from '../../hooks/useLayerManager';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 const LayerSidebar = ({ onImportData, onShowAnalysis }) => {

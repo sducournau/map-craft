@@ -68,6 +68,8 @@ const useLayerManager = create((set, get) => ({
     return id;
   },
   
+  // Reste du code inchangé...
+  
   // Supprimer une couche
   removeLayer: (layerId) => {
     set(state => ({
