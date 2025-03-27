@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["./*"],
+        "@components/*": ["./components/*"],
+        "@utils/*": ["./utils/*"],
+        "@hooks/*": ["./hooks/*"],
+        "@styles/*": ["./styles/*"]
+      },
+      "jsx": "react",
+      "moduleResolution": "node",
+      "target": "es2020",
+      "module": "esnext",
+      "esModuleInterop": true,
+      "resolveJsonModule": true
+    },
+    "exclude": ["node_modules", ".next", "out"],
+    "include": ["**/*.js", "**/*.jsx"]
+  }

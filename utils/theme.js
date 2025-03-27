@@ -1,50 +1,109 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 
-// Function to create theme based on mode (dark/light)
-export const createAppTheme = (mode = 'dark') => {
-  const isDark = mode === 'dark';
-  
-  return createTheme({
-    palette: {
-      mode,
-      primary: {
-        main: '#1976d2',
-        light: '#42a5f5',
-        dark: '#1565c0',
-      },
-      secondary: {
-        main: '#3f51b5',
-        light: '#7986cb',
-        dark: '#303f9f',
-      },
-      success: {
-        main: '#4caf50',
-        light: '#81c784',
-        dark: '#388e3c',
-      },
-      warning: {
-        main: '#ff9800',
-        light: '#ffb74d',
-        dark: '#f57c00',
-      },
-      error: {
-        main: '#f44336',
-        light: '#e57373',
-        dark: '#d32f2f',
-      },
-      background: {
-        default: isDark ? '#121212' : '#f5f5f5',
-        paper: isDark ? '#1e1e1e' : '#ffffff',
-        darker: isDark ? '#0a0a0a' : '#e0e0e0',
-        lighter: isDark ? '#2d2d2d' : '#fafafa',
-      },
-      text: {
-        primary: isDark ? '#ffffff' : '#212121',
-        secondary: isDark ? '#b0b0b0' : '#757575',
-        disabled: isDark ? '#6b6b6b' : '#9e9e9e',
-      },
-      divider: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+// Configuration des palettes de couleurs par mode
+const getDesignTokens = (mode) => ({
+  palette: {
+    mode,
+    ...(mode === 'light'
+      ? {
+          // Palette pour le mode clair
+          primary: {
+            main: '#1976d2',
+            light: '#42a5f5',
+            dark: '#1565c0',
+            contrastText: '#ffffff',
+          },
+          secondary: {
+            main: '#9c27b0',
+            light: '#ba68c8',
+            dark: '#7b1fa2',
+            contrastText: '#ffffff',
+          },
+          background: {
+            default: '#f5f5f5',
+            paper: '#ffffff',
+            lighter: '#fafafa',
+            darker: '#e0e0e0',
+          },
+          text: {
+            primary: 'rgba(0, 0, 0, 0.87)',
+            secondary: 'rgba(0, 0, 0, 0.6)',
+            disabled: 'rgba(0, 0, 0, 0.38)',
+          },
+          action: {
+            active: 'rgba(0, 0, 0, 0.54)',
+            hover: 'rgba(0, 0, 0, 0.04)',
+            selected: 'rgba(0, 0, 0, 0.08)',
+            disabled: 'rgba(0, 0, 0, 0.26)',
+            disabledBackground: 'rgba(0, 0, 0, 0.12)',
+          },
+          divider: 'rgba(0, 0, 0, 0.12)',
+        }
+      : {
+          // Palette pour le mode sombre
+          primary: {
+            main: '#90caf9',
+            light: '#e3f2fd',
+            dark: '#42a5f5',
+            contrastText: 'rgba(0, 0, 0, 0.87)',
+          },
+          secondary: {
+            main: '#ce93d8',
+            light: '#f3e5f5',
+            dark: '#ab47bc',
+            contrastText: 'rgba(0, 0, 0, 0.87)',
+          },
+          background: {
+            default: '#121212',
+            paper: '#1e1e1e',
+            lighter: '#2c2c2c',
+            darker: '#0a0a0a',
+          },
+          text: {
+            primary: '#ffffff',
+            secondary: 'rgba(255, 255, 255, 0.7)',
+            disabled: 'rgba(255, 255, 255, 0.5)',
+          },
+          action: {
+            active: '#ffffff',
+            hover: 'rgba(255, 255, 255, 0.08)',
+            selected: 'rgba(255, 255, 255, 0.16)',
+            disabled: 'rgba(255, 255, 255, 0.3)',
+            disabledBackground: 'rgba(255, 255, 255, 0.12)',
+          },
+          divider: 'rgba(255, 255, 255, 0.12)',
+        }),
+    // Couleurs communes
+    error: {
+      main: '#f44336',
+      light: '#e57373',
+      dark: '#d32f2f',
     },
+    warning: {
+      main: '#ff9800',
+      light: '#ffb74d',
+      dark: '#f57c00',
+    },
+    info: {
+      main: '#2196f3',
+      light: '#64b5f6',
+      dark: '#1976d2',
+    },
+    success: {
+      main: '#4caf50',
+      light: '#81c784',
+      dark: '#388e3c',
+    },
+  },
+});
+
+// Fonction pour créer le thème de l'application
+export const createAppTheme = (mode = 'dark') => {
+  let theme = createTheme({
+    // Tokens de design pour le mode actuel
+    ...getDesignTokens(mode),
+    
+    // Typographie
     typography: {
       fontFamily: [
         'Rubik',
@@ -105,28 +164,34 @@ export const createAppTheme = (mode = 'dark') => {
         fontSize: '0.75rem',
       },
     },
+    
+    // Arrondi des composants
     shape: {
       borderRadius: 8,
     },
+    
+    // Espacement
     spacing: 8,
+    
+    // Surcharges des composants
     components: {
       MuiCssBaseline: {
         styleOverrides: {
           body: {
             scrollbarWidth: 'thin',
-            scrollbarColor: isDark ? '#6b6b6b #1e1e1e' : '#9e9e9e #ffffff',
+            scrollbarColor: mode === 'dark' ? '#6b6b6b #1e1e1e' : '#9e9e9e #ffffff',
             '&::-webkit-scrollbar': {
               width: '8px',
               height: '8px',
             },
             '&::-webkit-scrollbar-track': {
-              background: isDark ? '#1e1e1e' : '#ffffff',
+              background: mode === 'dark' ? '#1e1e1e' : '#ffffff',
             },
             '&::-webkit-scrollbar-thumb': {
-              backgroundColor: isDark ? '#6b6b6b' : '#9e9e9e',
+              backgroundColor: mode === 'dark' ? '#6b6b6b' : '#9e9e9e',
               borderRadius: '4px',
               '&:hover': {
-                backgroundColor: isDark ? '#8b8b8b' : '#757575',
+                backgroundColor: mode === 'dark' ? '#8b8b8b' : '#757575',
               },
             },
           },
@@ -140,7 +205,7 @@ export const createAppTheme = (mode = 'dark') => {
             borderRadius: 8,
           },
           containedPrimary: {
-            boxShadow: isDark ? '0 2px 6px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.2)',
+            boxShadow: mode === 'dark' ? '0 2px 6px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.2)',
           },
         },
       },
@@ -153,7 +218,7 @@ export const createAppTheme = (mode = 'dark') => {
             borderRadius: 8,
           },
           elevation1: {
-            boxShadow: isDark 
+            boxShadow: mode === 'dark' 
               ? '0px 2px 6px -1px rgba(0,0,0,0.4), 0px 1px 4px -1px rgba(0,0,0,0.3)'
               : '0px 2px 6px -1px rgba(0,0,0,0.2), 0px 1px 4px -1px rgba(0,0,0,0.15)',
           },
@@ -166,91 +231,55 @@ export const createAppTheme = (mode = 'dark') => {
           },
         },
       },
-      MuiAppBar: {
+      MuiTableCell: {
         styleOverrides: {
           root: {
-            boxShadow: isDark 
-              ? '0px 2px 4px -1px rgba(0,0,0,0.4), 0px 4px 5px 0px rgba(0,0,0,0.3), 0px 1px 10px 0px rgba(0,0,0,0.2)'
-              : '0px 2px 4px -1px rgba(0,0,0,0.2), 0px 4px 5px 0px rgba(0,0,0,0.14), 0px 1px 10px 0px rgba(0,0,0,0.12)',
+            fontSize: '0.875rem',
+          },
+          head: {
+            fontWeight: 500,
           },
         },
       },
-      MuiIconButton: {
+      MuiTab: {
         styleOverrides: {
           root: {
-            transition: 'background-color 0.2s ease-in-out, color 0.2s ease-in-out',
+            textTransform: 'none',
           },
         },
       },
-      MuiTabs: {
+      MuiDialog: {
         styleOverrides: {
-          indicator: {
-            height: 3,
-            borderTopLeftRadius: 3,
-            borderTopRightRadius: 3,
+          paper: {
+            backgroundImage: 'none',
           },
         },
       },
-      MuiMenuItem: {
+      MuiAlert: {
         styleOverrides: {
           root: {
-            minHeight: 42,
-          },
-        },
-      },
-      MuiListItem: {
-        styleOverrides: {
-          root: {
-            paddingTop: 10,
-            paddingBottom: 10,
-          },
-        },
-      },
-      MuiAccordion: {
-        styleOverrides: {
-          root: {
-            '&:before': {
-              display: 'none',
-            },
+            borderRadius: 8,
           },
         },
       },
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
+            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(33,33,33,0.9)',
+            color: mode === 'dark' ? 'rgba(0,0,0,0.87)' : '#fff',
             fontSize: '0.75rem',
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(33, 33, 33, 0.9)',
-            color: isDark ? 'rgba(0, 0, 0, 0.87)' : 'rgba(255, 255, 255, 0.87)',
-            boxShadow: isDark 
-              ? '0 2px 6px rgba(0,0,0,0.3)' 
-              : '0 2px 6px rgba(0,0,0,0.2)',
             borderRadius: 4,
-            padding: '6px 12px',
           },
         },
       },
     },
-    transitions: {
-      easing: {
-        easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
-        easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
-        sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
-      },
-      duration: {
-        shortest: 150,
-        shorter: 200,
-        short: 250,
-        standard: 300,
-        complex: 375,
-        enteringScreen: 225,
-        leavingScreen: 195,
-      },
-    },
   });
+  
+  // Rendre les tailles de police adaptatives
+  theme = responsiveFontSizes(theme);
+  
+  return theme;
 };
 
-// Default theme (dark mode)
-const theme = createAppTheme('dark');
-
-export default theme;
+// Exporter le thème par défaut (mode sombre)
+export default createAppTheme('dark');
